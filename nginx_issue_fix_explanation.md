@@ -1,6 +1,6 @@
-# Nginx Configuration Issue - Explanation and Fix
+# Server Setup Script Improvements - Explanation and Fix
 
-## What Happened
+## Issue 1: Nginx Configuration Error
 
 When your server setup script ran, it encountered an error during the Nginx configuration phase. The specific error was:
 
@@ -77,3 +77,50 @@ If you encounter this issue again on a live server, you can manually fix it with
    ```
 
 The updated script should now run without Nginx configuration errors.
+
+## Issue 2: SSH Port Configuration Enhancement
+
+The original script only provided users with a binary choice for SSH port configuration:
+- Use a randomly generated port
+- Or enter a custom port
+
+I've improved this by adding more user-friendly options:
+
+```bash
+# Ask user for SSH port preference
+echo "SSH Port Options:"
+echo "1) Keep the default port (22)"
+echo "2) Enter your own port number"
+echo "3) Use a randomly generated port ($DEFAULT_SSH_PORT)"
+read -p "Select an option [1-3]: " SSH_PORT_OPTION
+```
+
+This approach offers clearer choices:
+1. Users can simply keep using the default port 22
+2. Advanced users can enter their own custom port
+3. Security-conscious users can opt for a randomly generated port
+
+The selection is handled with a case statement that validates input appropriately for each option.
+
+## Issue 3: SSH Service Restart Timing
+
+The original script restarted the SSH service immediately after configuring it, which could cause a connection loss midway through the script if the user was connected via SSH.
+
+I've fixed this by:
+
+1. Only testing the SSH configuration validity (without restarting) during the SSH configuration section
+2. Moving the actual SSH service restart to the very end of the script after all other tasks are complete
+3. Adding clear warnings about potential connection interruption and how to reconnect
+
+```bash
+log_section "Applying SSH Configuration"
+info "Restarting SSH service with new configuration..."
+info "IMPORTANT: Your connection may be interrupted if you're connected via SSH."
+info "Reconnect using: ssh -i /path/to/key -p $SSH_PORT $NEW_USER@your_server_ip"
+
+# Restart SSH service as the very last step
+systemctl restart sshd
+success "SSH service restarted with new configuration."
+```
+
+This ensures that even if the SSH connection is interrupted, all script tasks have been completed successfully.
