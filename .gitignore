@@ -1,0 +1,20 @@
+# .gitignore for server setup script
+
+# Logs
+*.log
+
+# Backup files
+*.bak
+*~
+*.swp
+
+# Environment variables
+.env
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Temporary files that might be created during testing
+temp/
+tmp/
