@@ -303,18 +303,35 @@ log_section "Firewall Configuration (UFW)"
 # Configure UFW
 info "Configuring firewall with UFW..."
 
-# Generate random SSH port or ask user
+# Generate random SSH port for later use
 DEFAULT_SSH_PORT=$(random_port)
-read -p "Enter SSH port (leave blank for randomly generated $DEFAULT_SSH_PORT): " SSH_PORT
-SSH_PORT=${SSH_PORT:-$DEFAULT_SSH_PORT}
 
-# Make sure SSH port is valid
-if ! [[ "$SSH_PORT" =~ ^[0-9]+$ ]] || [ "$SSH_PORT" -lt 1024 ] || [ "$SSH_PORT" -gt 65535 ]; then
-    warn "Invalid SSH port. Using default port 22."
-    SSH_PORT=22
-fi
+# Ask user for SSH port preference
+echo "SSH Port Options:"
+echo "1) Keep the default port (22)"
+echo "2) Enter your own port number"
+echo "3) Use a randomly generated port ($DEFAULT_SSH_PORT)"
+read -p "Select an option [1-3]: " SSH_PORT_OPTION
 
-info "Using SSH port: $SSH_PORT"
+case $SSH_PORT_OPTION in
+    1)
+        SSH_PORT=22
+        info "Using default SSH port: 22"
+        ;;
+    2)
+        read -p "Enter your preferred SSH port: " SSH_PORT
+        # Make sure SSH port is valid
+        if ! [[ "$SSH_PORT" =~ ^[0-9]+$ ]] || [ "$SSH_PORT" -lt 1024 ] || [ "$SSH_PORT" -gt 65535 ]; then
+            warn "Invalid SSH port. Using default port 22."
+            SSH_PORT=22
+        fi
+        info "Using SSH port: $SSH_PORT"
+        ;;
+    3|*)
+        SSH_PORT=$DEFAULT_SSH_PORT
+        info "Using randomly generated SSH port: $SSH_PORT"
+        ;;
+esac
 
 # Reset and disable UFW to start fresh
 ufw --force reset
@@ -426,12 +443,10 @@ info "Testing SSH configuration..."
 sshd -t
 if [ $? -eq 0 ]; then
     success "SSH configuration is valid."
-    systemctl restart sshd
-    success "SSH service restarted with new configuration."
+    # We'll restart SSH service at the very end of the script
 else
     error "SSH configuration test failed. Reverting to original configuration."
     cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config
-    systemctl restart sshd
     exit 1
 fi
 
@@ -776,5 +791,17 @@ log_section "IMPORTANT SECURITY REMINDER"
 warn "Make sure to save your SSH private keys and delete them from the server!"
 warn "SSH is now configured on port $SSH_PORT - make note of this!"
 warn "Your new admin user is: $NEW_USER"
+
+#############################################################
+# Final SSH Configuration and Restart
+#############################################################
+log_section "Applying SSH Configuration"
+info "Restarting SSH service with new configuration..."
+info "IMPORTANT: Your connection may be interrupted if you're connected via SSH."
+info "Reconnect using: ssh -i /path/to/key -p $SSH_PORT $NEW_USER@your_server_ip"
+
+# Restart SSH service as the very last step
+systemctl restart sshd
+success "SSH service restarted with new configuration."
 
 exit 0
