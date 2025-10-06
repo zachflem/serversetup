@@ -444,6 +444,12 @@ info "Installing Nginx..."
 apt-get install -y -qq nginx || { error "Failed to install Nginx."; exit 1; }
 
 info "Configuring Nginx as a reverse proxy..."
+# Remove the default site configuration to avoid conflicts
+if [ -f /etc/nginx/sites-enabled/default ]; then
+    rm /etc/nginx/sites-enabled/default
+    info "Removed default Nginx site configuration to prevent conflicts."
+fi
+
 # Create a better default Nginx configuration
 cat > /etc/nginx/conf.d/default.conf << EOF
 # Security headers
