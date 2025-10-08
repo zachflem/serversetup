@@ -155,6 +155,10 @@ instruction "This user will be used for administrative tasks instead of root."
 read -p "Enter username for the new user (leave blank for 'admin'): " NEW_USER
 NEW_USER=${NEW_USER:-admin}
 
+# Prompt for hostname
+read -p "Enter hostname for the server (leave blank to use current hostname '$(hostname)'): " SERVER_HOSTNAME
+SERVER_HOSTNAME=${SERVER_HOSTNAME:-$(hostname)}
+
 # Check if user exists
 if id "$NEW_USER" &>/dev/null; then
     warn "User '$NEW_USER' already exists."
@@ -368,7 +372,7 @@ chown $NEW_USER:$NEW_USER /home/$NEW_USER/.ssh
 # Generate SSH key for the new user
 info "Generating SSH key pair for user '$NEW_USER'..."
 SSH_KEY_FILE="/home/$NEW_USER/.ssh/id_rsa"
-ssh-keygen -t rsa -b 4096 -f "$SSH_KEY_FILE" -N "" -C "$NEW_USER@$(hostname)"
+ssh-keygen -t rsa -b 4096 -f "$SSH_KEY_FILE" -N "" -C "$NEW_USER@$SERVER_HOSTNAME"
 chmod 600 "$SSH_KEY_FILE"
 chmod 644 "$SSH_KEY_FILE.pub"
 chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.ssh"
@@ -395,15 +399,15 @@ echo
 cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
 
 # Configure SSH
-info "Hardening SSH configuration..."
+info "Configuring SSH (with optional key-based authentication)..."
 cat > /etc/ssh/sshd_config << EOF
 # SSH Server Configuration
 Port $SSH_PORT
 Protocol 2
 
-# Authentication
+# Authentication (Modified for flexibility)
 PermitRootLogin no
-PasswordAuthentication no
+PasswordAuthentication yes
 PubkeyAuthentication yes
 PermitEmptyPasswords no
 ChallengeResponseAuthentication no
@@ -416,9 +420,9 @@ AllowUsers $NEW_USER
 HostbasedAuthentication no
 IgnoreRhosts yes
 X11Forwarding no
-MaxAuthTries 3
-LoginGraceTime 30
-MaxSessions 2
+MaxAuthTries 5
+LoginGraceTime 60
+MaxSessions 3
 ClientAliveInterval 300
 ClientAliveCountMax 2
 
@@ -627,7 +631,7 @@ info "Setting up Git for user '$NEW_USER'..."
 
 # Configure Git for the new user
 su - "$NEW_USER" -c "git config --global user.name \"$NEW_USER\""
-su - "$NEW_USER" -c "git config --global user.email \"$NEW_USER@$(hostname)\""
+su - "$NEW_USER" -c "git config --global user.email \"$NEW_USER@$SERVER_HOSTNAME\""
 
 # Generate SSH key for GitHub if user wants to
 read -p "Set up SSH key for GitHub access? [Y/n]: " SETUP_GITHUB
@@ -651,7 +655,7 @@ EOF
     
     # Generate the GitHub SSH key
     GIT_SSH_KEY="/home/$NEW_USER/.ssh/github_rsa"
-    su - "$NEW_USER" -c "ssh-keygen -t rsa -b 4096 -f \"$GIT_SSH_KEY\" -N \"\" -C \"$NEW_USER@$(hostname)-github\""
+    su - "$NEW_USER" -c "ssh-keygen -t rsa -b 4096 -f \"$GIT_SSH_KEY\" -N \"\" -C \"$NEW_USER@$SERVER_HOSTNAME-github\""
     
     # Display the GitHub public key
     echo
@@ -732,7 +736,7 @@ cat > "$SUMMARY_FILE" << EOF
 SYSTEM INFORMATION:
 ------------------
 Date: $(date)
-Hostname: $(hostname)
+Hostname: $SERVER_HOSTNAME
 IP Address: $(hostname -I | awk '{print $1}')
 
 USER ACCESS:
