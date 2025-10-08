@@ -2,7 +2,7 @@
 
 #############################################################
 # Server Setup Script for Debian-based Systems
-# Version: 0.6-081025-1853
+# Version: 0.7-091025-1007
 # 
 # This script helps set up a new server with:
 # - New user with sudo access
@@ -684,8 +684,6 @@ services:
     image: 'jc21/nginx-proxy-manager:latest'
     restart: unless-stopped
     ports:
-      - '80:80'
-      - '443:443'
       - '81:81'
     volumes:
       - ./data:/data
