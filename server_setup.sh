@@ -2,7 +2,7 @@
 
 #############################################################
 # Server Setup Script for Debian-based Systems
-# Version: 0.5-081025-1839
+# Version: 0.6-081025-1853
 # 
 # This script helps set up a new server with:
 # - New user with sudo access
@@ -11,7 +11,6 @@
 # - Nginx reverse proxy
 # - Nginx Proxy Manager (web interface)
 # - Docker and Docker Compose
-# - GitHub access
 #
 #############################################################
 
@@ -120,9 +119,53 @@ check_os
 instruction "You will now create a new user with sudo access."
 instruction "This user will be used for administrative tasks instead of root."
 
+#############################################################
+# User Management
+#############################################################
+log_section "User Management"
+
 # Prompt for username
 read -p "Enter username for the new user (leave blank for 'admin'): " NEW_USER
 NEW_USER=${NEW_USER:-admin}
+
+# Check if user exists
+if id "$NEW_USER" &>/dev/null; then
+    warn "User '$NEW_USER' already exists."
+    read -p "Do you want to proceed with the existing user? [y/n]: " proceed
+    if [[ "$proceed" != "y" && "$proceed" != "Y" ]]; then
+        error "Aborted by user."
+        exit 1
+    fi
+else
+    # Generate or prompt for password
+    read -p "Generate a random password? [Y/n]: " GEN_PASS
+    if [[ "$GEN_PASS" == "n" || "$GEN_PASS" == "N" ]]; then
+        read -s -p "Enter password for the new user: " USER_PASS
+        echo
+        read -s -p "Confirm password: " USER_PASS_CONFIRM
+        echo
+        if [[ "$USER_PASS" != "$USER_PASS_CONFIRM" ]]; then
+            error "Passwords do not match."
+            exit 1
+        fi
+    else
+        USER_PASS=$(generate_password)
+    fi
+
+    # Create user
+    info "Creating new user '$NEW_USER'..."
+    useradd -m -s /bin/bash "$NEW_USER" || { error "Failed to create user."; exit 1; }
+    echo "$NEW_USER:$USER_PASS" | chpasswd || { error "Failed to set password."; exit 1; }
+    
+    # Add user to sudo group
+    usermod -aG sudo "$NEW_USER" || { error "Failed to add user to sudo group."; exit 1; }
+    success "User '$NEW_USER' created and added to the sudo group."
+    
+    if [[ "$GEN_PASS" != "n" && "$GEN_PASS" != "N" ]]; then
+        info "Generated password for '$NEW_USER': $USER_PASS"
+        instruction "IMPORTANT: Save this password immediately! It won't be shown again."
+    fi
+fi
 
 # Prompt for hostname
 read -p "Enter hostname for the server (leave blank to use current hostname '$(hostname)'): " SERVER_HOSTNAME
@@ -186,50 +229,6 @@ usermod -aG docker "$NEW_USER" || { error "Failed to add user to docker group.";
 
 success "Docker installed and configured successfully."
 success "User '$NEW_USER' added to docker group."
-
-#############################################################
-# User Management
-#############################################################
-log_section "User Management"
-
-# Check if user exists
-if id "$NEW_USER" &>/dev/null; then
-    warn "User '$NEW_USER' already exists."
-    read -p "Do you want to proceed with the existing user? [y/n]: " proceed
-    if [[ "$proceed" != "y" && "$proceed" != "Y" ]]; then
-        error "Aborted by user."
-        exit 1
-    fi
-else
-    # Generate or prompt for password
-    read -p "Generate a random password? [Y/n]: " GEN_PASS
-    if [[ "$GEN_PASS" == "n" || "$GEN_PASS" == "N" ]]; then
-        read -s -p "Enter password for the new user: " USER_PASS
-        echo
-        read -s -p "Confirm password: " USER_PASS_CONFIRM
-        echo
-        if [[ "$USER_PASS" != "$USER_PASS_CONFIRM" ]]; then
-            error "Passwords do not match."
-            exit 1
-        fi
-    else
-        USER_PASS=$(generate_password)
-    fi
-
-    # Create user
-    info "Creating new user '$NEW_USER'..."
-    useradd -m -s /bin/bash "$NEW_USER" || { error "Failed to create user."; exit 1; }
-    echo "$NEW_USER:$USER_PASS" | chpasswd || { error "Failed to set password."; exit 1; }
-    
-    # Add user to sudo group
-    usermod -aG sudo "$NEW_USER" || { error "Failed to add user to sudo group."; exit 1; }
-    success "User '$NEW_USER' created and added to the sudo group."
-    
-    if [[ "$GEN_PASS" != "n" && "$GEN_PASS" != "N" ]]; then
-        info "Generated password for '$NEW_USER': $USER_PASS"
-        instruction "IMPORTANT: Save this password immediately! It won't be shown again."
-    fi
-fi
 
 #############################################################
 # System Hardening
