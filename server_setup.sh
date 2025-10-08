@@ -170,6 +170,9 @@ fi
 # Prompt for hostname
 read -p "Enter hostname for the server (leave blank to use current hostname '$(hostname)'): " SERVER_HOSTNAME
 SERVER_HOSTNAME=${SERVER_HOSTNAME:-$(hostname)}
+hostnamectl set-hostname "$SERVER_HOSTNAME"
+info "Server hostname set to: $SERVER_HOSTNAME"
+
 
 # Update and upgrade system
 log_section "Updating System Packages"
@@ -713,6 +716,10 @@ sleep 30
 # Check if NPM is running
 if $COMPOSE_CMD ps | grep -q "Up"; then
     success "Nginx Proxy Manager installed and started successfully."
+    log "NGINX_PROXY_MANAGER: Web Interface accessible at http://your-server-ip:81"
+    log "NGINX_PROXY_MANAGER: Default Admin Email: admin@example.com"
+    log "NGINX_PROXY_MANAGER: Default Admin Password: changeme"
+    log "SECURITY_WARNING: Nginx Proxy Manager default credentials must be changed immediately"
     info "Nginx Proxy Manager will be available at:"
     info "  Web Interface: http://your-server-ip:81"
     info "  Default Admin Email: admin@example.com"
