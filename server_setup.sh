@@ -9,6 +9,8 @@
 # - System hardening
 # - Secure SSH configuration
 # - Nginx reverse proxy
+# - Nginx Proxy Manager (web interface)
+# - Docker and Docker Compose
 # - GitHub access
 #############################################################
 
@@ -142,6 +144,35 @@ apt-get install -y -qq \
     ncdu \
     net-tools || { error "Failed to install essential packages."; exit 1; }
 success "Essential packages installed."
+
+# Install Docker
+log_section "Installing Docker"
+info "Installing Docker and Docker Compose..."
+
+# Add Docker's official GPG key
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
+
+# Add Docker repository to Apt sources
+echo \
+  "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+   tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Update package list and install Docker
+apt-get update -qq
+apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || { error "Failed to install Docker."; exit 1; }
+
+# Start and enable Docker service
+systemctl enable docker
+systemctl start docker
+
+# Add the new user to the docker group
+usermod -aG docker "$NEW_USER" || { error "Failed to add user to docker group."; exit 1; }
+
+success "Docker installed and configured successfully."
+success "User '$NEW_USER' added to docker group."
 
 #############################################################
 # User Management
@@ -623,6 +654,62 @@ else
 fi
 
 #############################################################
+# Nginx Proxy Manager Installation
+#############################################################
+log_section "Nginx Proxy Manager Installation"
+
+info "Installing Nginx Proxy Manager with Docker..."
+
+# Create directories for Nginx Proxy Manager
+mkdir -p /opt/npm/data
+mkdir -p /opt/npm/letsencrypt
+
+# Create Docker Compose file for Nginx Proxy Manager
+cat > /opt/npm/docker-compose.yml << EOF
+version: '3.8'
+services:
+  npm:
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '81:81'
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+    environment:
+      DB_SQLITE_FILE: "/data/database.sqlite"
+      DISABLE_IPV6: 'true'
+EOF
+
+# Set proper permissions
+chmod 600 /opt/npm/docker-compose.yml
+chown -R "$NEW_USER:$NEW_USER" /opt/npm
+
+# Start Nginx Proxy Manager
+info "Starting Nginx Proxy Manager..."
+cd /opt/npm
+docker-compose up -d || { error "Failed to start Nginx Proxy Manager."; exit 1; }
+
+# Wait for NPM to initialize
+info "Waiting for Nginx Proxy Manager to initialize..."
+sleep 30
+
+# Check if NPM is running
+if docker-compose ps | grep -q "Up"; then
+    success "Nginx Proxy Manager installed and started successfully."
+    info "Nginx Proxy Manager will be available at:"
+    info "  Web Interface: http://your-server-ip:81"
+    info "  Default Admin Email: admin@example.com"
+    info "  Default Admin Password: changeme"
+    instruction "IMPORTANT: Change the default password immediately after first login!"
+else
+    error "Nginx Proxy Manager failed to start properly."
+    warn "You may need to start it manually with: cd /opt/npm && docker-compose up -d"
+fi
+
+#############################################################
 # GitHub Access Setup
 #############################################################
 log_section "GitHub Access Setup"
@@ -757,6 +844,8 @@ SECURITY MEASURES:
 INSTALLED SERVICES:
 ------------------
 ✓ Nginx (configured as reverse proxy)
+✓ Nginx Proxy Manager (web interface for proxy management)
+✓ Docker and Docker Compose (ready for container deployment)
 ✓ Git (configured for GitHub access)
 $(if [[ "$SETUP_LOGWATCH" != "n" && "$SETUP_LOGWATCH" != "N" ]]; then echo "✓ Logwatch (daily log analysis)"; fi)
 
