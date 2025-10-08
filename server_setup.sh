@@ -145,6 +145,8 @@ apt-get install -y -qq \
     net-tools || { error "Failed to install essential packages."; exit 1; }
 success "Essential packages installed."
 
+# Install Docker (moved after user creation)
+
 # Install Docker
 log_section "Installing Docker"
 info "Installing Docker and Docker Compose..."
