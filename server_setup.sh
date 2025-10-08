@@ -220,6 +220,18 @@ echo \
 apt-get update -qq
 apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || { error "Failed to install Docker."; exit 1; }
 
+# Determine compose command to use
+if command -v docker &> /dev/null && docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+else
+    # Fallback to standalone docker-compose (install if needed)
+    if ! command -v docker-compose &> /dev/null; then
+        apt-get install -y -qq docker-compose || { error "Failed to install docker-compose."; exit 1; }
+    fi
+    COMPOSE_CMD="docker-compose"
+fi
+info "Using Docker Compose command: $COMPOSE_CMD"
+
 # Start and enable Docker service
 systemctl enable docker
 systemctl start docker
@@ -667,7 +679,6 @@ mkdir -p /opt/npm/letsencrypt
 
 # Create Docker Compose file for Nginx Proxy Manager
 cat > /opt/npm/docker-compose.yml << EOF
-version: '3.8'
 services:
   npm:
     image: 'jc21/nginx-proxy-manager:latest'
@@ -695,14 +706,14 @@ fi
 # Start Nginx Proxy Manager
 info "Starting Nginx Proxy Manager..."
 cd /opt/npm
-docker-compose up -d || { error "Failed to start Nginx Proxy Manager."; exit 1; }
+$COMPOSE_CMD up -d || { error "Failed to start Nginx Proxy Manager."; exit 1; }
 
 # Wait for NPM to initialize
 info "Waiting for Nginx Proxy Manager to initialize..."
 sleep 30
 
 # Check if NPM is running
-if docker-compose ps | grep -q "Up"; then
+if $COMPOSE_CMD ps | grep -q "Up"; then
     success "Nginx Proxy Manager installed and started successfully."
     info "Nginx Proxy Manager will be available at:"
     info "  Web Interface: http://your-server-ip:81"
@@ -711,7 +722,7 @@ if docker-compose ps | grep -q "Up"; then
     instruction "IMPORTANT: Change the default password immediately after first login!"
 else
     error "Nginx Proxy Manager failed to start properly."
-    warn "You may need to start it manually with: cd /opt/npm && docker-compose up -d"
+    warn "You may need to start it manually with: cd /opt/npm && $COMPOSE_CMD up -d"
 fi
 
 #############################################################
