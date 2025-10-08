@@ -2,7 +2,7 @@
 
 #############################################################
 # Server Setup Script for Debian-based Systems
-# Version: 1.0
+# Version: 0.5-081025-1839
 # 
 # This script helps set up a new server with:
 # - New user with sudo access
@@ -12,6 +12,7 @@
 # - Nginx Proxy Manager (web interface)
 # - Docker and Docker Compose
 # - GitHub access
+#
 #############################################################
 
 # Text colors
@@ -115,6 +116,18 @@ log_section "Starting Server Setup"
 check_root
 check_os
 
+# Get user input first before any installations that depend on these variables
+instruction "You will now create a new user with sudo access."
+instruction "This user will be used for administrative tasks instead of root."
+
+# Prompt for username
+read -p "Enter username for the new user (leave blank for 'admin'): " NEW_USER
+NEW_USER=${NEW_USER:-admin}
+
+# Prompt for hostname
+read -p "Enter hostname for the server (leave blank to use current hostname '$(hostname)'): " SERVER_HOSTNAME
+SERVER_HOSTNAME=${SERVER_HOSTNAME:-$(hostname)}
+
 # Update and upgrade system
 log_section "Updating System Packages"
 info "Updating package lists. This might take a few minutes..."
@@ -144,8 +157,6 @@ apt-get install -y -qq \
     ncdu \
     net-tools || { error "Failed to install essential packages."; exit 1; }
 success "Essential packages installed."
-
-# Install Docker (moved after user creation)
 
 # Install Docker
 log_section "Installing Docker"
@@ -180,17 +191,6 @@ success "User '$NEW_USER' added to docker group."
 # User Management
 #############################################################
 log_section "User Management"
-
-instruction "You will now create a new user with sudo access."
-instruction "This user will be used for administrative tasks instead of root."
-
-# Prompt for username
-read -p "Enter username for the new user (leave blank for 'admin'): " NEW_USER
-NEW_USER=${NEW_USER:-admin}
-
-# Prompt for hostname
-read -p "Enter hostname for the server (leave blank to use current hostname '$(hostname)'): " SERVER_HOSTNAME
-SERVER_HOSTNAME=${SERVER_HOSTNAME:-$(hostname)}
 
 # Check if user exists
 if id "$NEW_USER" &>/dev/null; then
@@ -687,7 +687,11 @@ EOF
 
 # Set proper permissions
 chmod 600 /opt/npm/docker-compose.yml
-chown -R "$NEW_USER:$NEW_USER" /opt/npm
+if id "$NEW_USER" &>/dev/null; then
+    chown -R "$NEW_USER:$NEW_USER" /opt/npm
+else
+    warn "User $NEW_USER not found, skipping ownership change for NPM directories."
+fi
 
 # Start Nginx Proxy Manager
 info "Starting Nginx Proxy Manager..."
