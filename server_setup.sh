@@ -8,8 +8,8 @@
 # - New user with sudo access
 # - System hardening
 # - Secure SSH configuration
-# - Nginx reverse proxy
-# - Nginx Proxy Manager (web interface)
+# - Nginx Proxy Manager (primary reverse proxy on ports 80/443)
+# - Host Nginx (installed but disabled - serves as backup/config reference)
 # - Docker and Docker Compose
 #
 #############################################################
@@ -32,7 +32,7 @@ touch "$LOGFILE" 2>/dev/null
 log() {
     local timestamp
     timestamp=$(date "+%Y-%m-%d %H:%M:%S")
-    echo -e "${timestamp} - $1" | tee -a "$LOGFILE"
+    echo -e "${timestamp} - $1" >> "$LOGFILE"
 }
 
 log_section() {
@@ -661,9 +661,10 @@ info "Testing Nginx configuration..."
 nginx -t
 if [ $? -eq 0 ]; then
     success "Nginx configuration is valid."
-    systemctl enable nginx
-    systemctl restart nginx
-    success "Nginx service enabled and restarted."
+    # Note: Host Nginx is not started because Nginx Proxy Manager handles the reverse proxy and web serving
+    # systemctl enable nginx
+    # systemctl restart nginx
+    success "Nginx configuration tested. Service not started - NPM will handle proxy duties."
 else
     error "Nginx configuration test failed."
     exit 1
@@ -687,7 +688,9 @@ services:
     image: 'jc21/nginx-proxy-manager:latest'
     restart: unless-stopped
     ports:
+      - '80:80'
       - '81:81'
+      - '443:443'
     volumes:
       - ./data:/data
       - ./letsencrypt:/etc/letsencrypt
@@ -864,8 +867,8 @@ SECURITY MEASURES:
 
 INSTALLED SERVICES:
 ------------------
-✓ Nginx (configured as reverse proxy)
-✓ Nginx Proxy Manager (web interface for proxy management)
+✓ Nginx Proxy Manager (main reverse proxy - listens on ports 80/443)
+✓ Host Nginx (installed but not running - configured as backup/spare)
 ✓ Docker and Docker Compose (ready for container deployment)
 ✓ Git (configured for GitHub access)
 $(if [[ "$SETUP_LOGWATCH" != "n" && "$SETUP_LOGWATCH" != "N" ]]; then echo "✓ Logwatch (daily log analysis)"; fi)
