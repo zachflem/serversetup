@@ -697,6 +697,11 @@ services:
     environment:
       DB_SQLITE_FILE: "/data/database.sqlite"
       DISABLE_IPV6: 'true'
+    networks:
+      - reverse_proxy
+
+networks:
+  reverse_proxy:
 EOF
 
 # Set proper permissions
