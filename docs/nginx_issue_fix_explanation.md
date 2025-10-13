@@ -123,4 +123,6 @@ systemctl restart sshd
 success "SSH service restarted with new configuration."
 ```
 
+Note: If you configured a non-default SSH port, make sure to include `-p $SSH_PORT` in all SSH commands.
+
 This ensures that even if the SSH connection is interrupted, all script tasks have been completed successfully.

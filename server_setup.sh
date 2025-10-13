@@ -9,7 +9,6 @@
 # - System hardening
 # - Secure SSH configuration
 # - Nginx Proxy Manager (primary reverse proxy on ports 80/443)
-# - Host Nginx (installed but disabled - serves as backup/config reference)
 # - Docker and Docker Compose
 #
 #############################################################
@@ -394,9 +393,9 @@ ufw default allow outgoing
 # Allow SSH on the configured port
 ufw allow "$SSH_PORT"/tcp comment 'SSH access'
 
-# Allow HTTP and HTTPS for Nginx
-ufw allow 80/tcp comment 'HTTP for Nginx'
-ufw allow 443/tcp comment 'HTTPS for Nginx'
+# Allow HTTP and HTTPS for Nginx Proxy Manager
+ufw allow 80/tcp comment 'HTTP for Nginx Proxy Manager'
+ufw allow 443/tcp comment 'HTTPS for Nginx Proxy Manager'
 
 # Enable UFW
 info "Enabling UFW firewall..."
@@ -501,174 +500,7 @@ else
     exit 1
 fi
 
-#############################################################
-# Nginx Installation and Configuration
-#############################################################
-log_section "Nginx Installation and Configuration"
 
-info "Installing Nginx..."
-apt-get install -y -qq nginx || { error "Failed to install Nginx."; exit 1; }
-
-info "Configuring Nginx as a reverse proxy..."
-# Remove the default site configuration to avoid conflicts
-if [ -f /etc/nginx/sites-enabled/default ]; then
-    rm /etc/nginx/sites-enabled/default
-    info "Removed default Nginx site configuration to prevent conflicts."
-fi
-
-# Create a better default Nginx configuration
-cat > /etc/nginx/conf.d/default.conf << EOF
-# Security headers
-map \$http_upgrade \$connection_upgrade {
-    default upgrade;
-    '' close;
-}
-
-server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
-
-    # Redirect all HTTP to HTTPS (uncomment after setting up SSL)
-    # return 301 https://\$host\$request_uri;
-
-    # Temporary landing page
-    root /var/www/html;
-    index index.html index.htm;
-
-    # Security headers
-    add_header X-Content-Type-Options nosniff;
-    add_header X-Frame-Options SAMEORIGIN;
-    add_header X-XSS-Protection "1; mode=block";
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; media-src 'self'; frame-src 'self'; frame-ancestors 'self'; form-action 'self';";
-    add_header Referrer-Policy no-referrer-when-downgrade;
-
-    # Logging
-    access_log /var/log/nginx/access.log;
-    error_log /var/log/nginx/error.log;
-
-    # Reverse proxy example config (commented out)
-    # location /app/ {
-    #     proxy_pass http://localhost:8080/;
-    #     proxy_http_version 1.1;
-    #     proxy_set_header Upgrade \$http_upgrade;
-    #     proxy_set_header Connection \$connection_upgrade;
-    #     proxy_set_header Host \$host;
-    #     proxy_set_header X-Real-IP \$remote_addr;
-    #     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    #     proxy_set_header X-Forwarded-Proto \$scheme;
-    # }
-}
-
-# HTTPS server (uncomment after setting up SSL)
-# server {
-#     listen 443 ssl http2;
-#     listen [::]:443 ssl http2;
-#     server_name _;
-#
-#     ssl_certificate /etc/nginx/ssl/server.crt;
-#     ssl_certificate_key /etc/nginx/ssl/server.key;
-#     ssl_protocols TLSv1.2 TLSv1.3;
-#     ssl_prefer_server_ciphers on;
-#     ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384';
-#     ssl_session_timeout 1d;
-#     ssl_session_cache shared:SSL:10m;
-#     ssl_session_tickets off;
-#
-#     # OCSP Stapling
-#     ssl_stapling on;
-#     ssl_stapling_verify on;
-#
-#     # Security headers (same as HTTP)
-#     add_header X-Content-Type-Options nosniff;
-#     add_header X-Frame-Options SAMEORIGIN;
-#     add_header X-XSS-Protection "1; mode=block";
-#     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; media-src 'self'; frame-src 'self'; frame-ancestors 'self'; form-action 'self';";
-#     add_header Referrer-Policy no-referrer-when-downgrade;
-#     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
-#
-#     root /var/www/html;
-#     index index.html index.htm;
-#
-#     # Reverse proxy example (same as HTTP)
-#     # location /app/ {
-#     #     proxy_pass http://localhost:8080/;
-#     #     proxy_http_version 1.1;
-#     #     proxy_set_header Upgrade \$http_upgrade;
-#     #     proxy_set_header Connection \$connection_upgrade;
-#     #     proxy_set_header Host \$host;
-#     #     proxy_set_header X-Real-IP \$remote_addr;
-#     #     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-#     #     proxy_set_header X-Forwarded-Proto \$scheme;
-#     # }
-# }
-EOF
-
-# Create a simple landing page
-cat > /var/www/html/index.html << EOF
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Server Setup Complete</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 40px 20px;
-            line-height: 1.6;
-            color: #333;
-        }
-        h1 {
-            color: #4CAF50;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-        }
-        .info {
-            background-color: #f9f9f9;
-            border-left: 4px solid #4CAF50;
-            padding: 15px;
-            margin: 20px 0;
-        }
-        code {
-            background-color: #f5f5f5;
-            padding: 2px 5px;
-            border-radius: 3px;
-            font-family: monospace;
-        }
-    </style>
-</head>
-<body>
-    <h1>Server Setup Complete</h1>
-    <p>Your server has been successfully set up and hardened. This is a temporary landing page served by Nginx.</p>
-    
-    <div class="info">
-        <p><strong>Next steps:</strong></p>
-        <ul>
-            <li>Configure your applications to work with Nginx reverse proxy</li>
-            <li>Set up SSL/TLS certificates for HTTPS</li>
-            <li>Replace this page with your actual content</li>
-        </ul>
-    </div>
-    
-    <p>For more information, check the server logs and documentation.</p>
-</body>
-</html>
-EOF
-
-# Test Nginx configuration
-info "Testing Nginx configuration..."
-nginx -t
-if [ $? -eq 0 ]; then
-    success "Nginx configuration is valid."
-    # Note: Host Nginx is not started because Nginx Proxy Manager handles the reverse proxy and web serving
-    # systemctl enable nginx
-    # systemctl restart nginx
-    success "Nginx configuration tested. Service not started - NPM will handle proxy duties."
-else
-    error "Nginx configuration test failed."
-    exit 1
-fi
 
 #############################################################
 # Nginx Proxy Manager Installation
@@ -873,7 +705,6 @@ SECURITY MEASURES:
 INSTALLED SERVICES:
 ------------------
 ✓ Nginx Proxy Manager (main reverse proxy - listens on ports 80/443)
-✓ Host Nginx (installed but not running - configured as backup/spare)
 ✓ Docker and Docker Compose (ready for container deployment)
 ✓ Git (configured for GitHub access)
 $(if [[ "$SETUP_LOGWATCH" != "n" && "$SETUP_LOGWATCH" != "N" ]]; then echo "✓ Logwatch (daily log analysis)"; fi)
