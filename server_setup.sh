@@ -13,7 +13,7 @@
 #
 #############################################################
 
-# Text colors
+# Text colors and banner formatting
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -21,6 +21,13 @@ BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
+
+# Consistent banner function
+banner_print() {
+    echo -e "${PURPLE}========================================================${NC}"
+    echo -e "${PURPLE}         SERVER SETUP SCRIPT v0.9-101425-2001${NC}"
+    echo -e "${PURPLE}========================================================${NC}"
+}
 
 # Logging setup
 LOGFILE="/var/log/server_setup.log"
@@ -110,9 +117,7 @@ trap cleanup SIGINT SIGTERM
 #############################################################
 
 clear
-echo -e "${PURPLE}========================================================${NC}"
-echo -e "${PURPLE}         SERVER SETUP SCRIPT v0.9-101425-2001${NC}"
-echo -e "${PURPLE}========================================================${NC}"
+banner_print
 
 log_section "Starting Server Setup"
 check_root
@@ -232,6 +237,15 @@ fi
 echo -e "${BLUE}├─ System Configuration:${NC}"
 echo -e "${BLUE}├─ Hostname:${NC} $CURRENT_HOSTNAME → $SERVER_HOSTNAME"
 echo -e "${BLUE}├─ SSH Port:${NC} 22 → $SSH_PORT"
+echo -e "${BLUE}├─ Server Access URL:${NC} $SERVER_ACCESS_URL"
+
+echo -e "${BLUE}├─ GitHub Configuration:${NC}"
+if [[ "$SETUP_GITHUB" != "n" && "$SETUP_GITHUB" != "N" ]]; then
+    echo -e "${BLUE}├─ Username:${NC} $GIT_USER"
+    echo -e "${BLUE}└─ Email:${NC} $GIT_EMAIL"
+else
+    echo -e "${BLUE}└─ GitHub Setup: NO${NC}"
+fi
 
 echo -e "${BLUE}├─ Services to Install:${NC}"
 echo -e "${BLUE}│  ├─ Docker & Docker Compose${NC}"
@@ -767,7 +781,10 @@ log_section "Setup Complete"
 # Create a summary file
 SUMMARY_FILE="/home/$NEW_USER/server_setup_summary.txt"
 
+          SERVER SETUP SUMMARY
 cat > "$SUMMARY_FILE" << EOF
+          SERVER SETUP SUMMARY
+          SERVER SETUP SCRIPT v0.9-101425-2001
 ========================================================
           SERVER SETUP SUMMARY
 ========================================================
