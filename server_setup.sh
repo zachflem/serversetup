@@ -196,6 +196,14 @@ esac
 # GitHub setup option
 read -p "Set up SSH key for GitHub access? [Y/n]: " SETUP_GITHUB
 
+# Collect GitHub credentials if selected
+GIT_USER=""
+GIT_EMAIL=""
+if [[ "$SETUP_GITHUB" != "n" && "$SETUP_GITHUB" != "N" ]]; then
+    read -p "Enter your GitHub username: " GIT_USER
+    read -p "Enter your Git commit email address: " GIT_EMAIL
+fi
+
 # Logwatch option
 read -p "Install Logwatch for daily log analysis? [Y/n]: " SETUP_LOGWATCH
 
