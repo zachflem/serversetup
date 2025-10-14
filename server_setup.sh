@@ -2,7 +2,7 @@
 
 #############################################################
 # Server Setup Script for Debian-based Systems
-# Version: 0.8-101425-1857
+# Version: 0.9-101425-2001
 #
 # This script helps set up a new server with:
 # - New user with sudo access
@@ -203,6 +203,10 @@ if [[ "$SETUP_GITHUB" != "n" && "$SETUP_GITHUB" != "N" ]]; then
     read -p "Enter your GitHub username: " GIT_USER
     read -p "Enter your Git commit email address: " GIT_EMAIL
 fi
+
+# Server access URL/IP - for SSH commands
+read -p "Enter the IP address or domain you'll use to access this server: " SERVER_ACCESS_URL
+SERVER_ACCESS_URL=${SERVER_ACCESS_URL:-$(hostname -I | awk '{print $1}')}
 
 # Logwatch option
 read -p "Install Logwatch for daily log analysis? [Y/n]: " SETUP_LOGWATCH
@@ -687,9 +691,15 @@ log_section "GitHub Access Setup"
 
 info "Setting up Git for user '$NEW_USER'..."
 
-# Configure Git for the new user
-su - "$NEW_USER" -c "git config --global user.name \"$NEW_USER\""
-su - "$NEW_USER" -c "git config --global user.email \"$NEW_USER@$SERVER_HOSTNAME\""
+# Configure Git for the new user - use provided credentials if GitHub setup chosen
+if [[ "$SETUP_GITHUB" != "n" && "$SETUP_GITHUB" != "N" && -n "$GIT_USER" ]]; then
+    su - "$NEW_USER" -c "git config --global user.name \"$GIT_USER\""
+    su - "$NEW_USER" -c "git config --global user.email \"$GIT_EMAIL\""
+else
+    # Fallback if no GitHub setup or credentials
+    su - "$NEW_USER" -c "git config --global user.name \"$NEW_USER\""
+    su - "$NEW_USER" -c "git config --global user.email \"$NEW_USER@$SERVER_HOSTNAME\""
+fi
 
 # Generate SSH key for GitHub if user wants to
 read -p "Set up SSH key for GitHub access? [Y/n]: " SETUP_GITHUB
