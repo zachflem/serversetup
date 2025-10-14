@@ -110,34 +110,42 @@ trap cleanup SIGINT SIGTERM
 #############################################################
 
 clear
+echo -e "${PURPLE}========================================================${NC}"
+echo -e "${PURPLE}         SERVER SETUP SCRIPT v0.8-101425-1857${NC}"
+echo -e "${PURPLE}========================================================${NC}"
+
 log_section "Starting Server Setup"
 check_root
 check_os
 
-# Get user input first before any installations that depend on these variables
-instruction "You will now create a new user with sudo access."
-instruction "This user will be used for administrative tasks instead of root."
+instruction "Let's collect all the configuration information first."
+instruction "After reviewing your choices, you'll be asked to confirm before any changes are made."
 
 #############################################################
-# User Management
+# Configuration Collection Phase
 #############################################################
-log_section "User Management"
+log_section "Configuration Collection"
 
 # Prompt for username
 read -p "Enter username for the new user (leave blank for 'admin'): " NEW_USER
 NEW_USER=${NEW_USER:-admin}
 
-# Check if user exists
+# Check if user exists and collect password
+USER_EXISTS=false
+CREATE_NEW_USER=false
 if id "$NEW_USER" &>/dev/null; then
+    USER_EXISTS=true
     warn "User '$NEW_USER' already exists."
     read -p "Do you want to proceed with the existing user? [y/n]: " proceed
     if [[ "$proceed" != "y" && "$proceed" != "Y" ]]; then
-        error "Aborted by user."
+        error "Setup cancelled by user."
         exit 1
     fi
+    info "Will use existing user '$NEW_USER'."
 else
+    CREATE_NEW_USER=true
     # Generate or prompt for password
-    read -p "Generate a random password? [Y/n]: " GEN_PASS
+    read -p "Generate a random password for '$NEW_USER'? [Y/n]: " GEN_PASS
     if [[ "$GEN_PASS" == "n" || "$GEN_PASS" == "N" ]]; then
         read -s -p "Enter password for the new user: " USER_PASS
         echo
@@ -150,27 +158,121 @@ else
     else
         USER_PASS=$(generate_password)
     fi
+fi
 
+# Prompt for hostname
+CURRENT_HOSTNAME=$(hostname)
+read -p "Enter hostname for the server (leave blank for '$CURRENT_HOSTNAME'): " SERVER_HOSTNAME
+SERVER_HOSTNAME=${SERVER_HOSTNAME:-$CURRENT_HOSTNAME}
+
+# SSH Port preference
+DEFAULT_SSH_PORT=$(random_port)
+echo "SSH Port Options:"
+echo "1) Keep the default port (22)"
+echo "2) Enter your own port number"
+echo "3) Use a randomly generated port ($DEFAULT_SSH_PORT)"
+read -p "Select SSH port option [1-3]: " SSH_PORT_OPTION
+
+SSH_PORT=""
+case $SSH_PORT_OPTION in
+    1)
+        SSH_PORT=22
+        info "Will use default SSH port: 22"
+        ;;
+    2)
+        read -p "Enter your preferred SSH port: " SSH_PORT
+        # Make sure SSH port is valid (basic check - full validation later)
+        if ! [[ "$SSH_PORT" =~ ^[0-9]+$ ]] || [ "$SSH_PORT" -lt 1024 ] || [ "$SSH_PORT" -gt 65535 ]; then
+            warn "Port $SSH_PORT is invalid. Will use default port 22 during setup."
+            SSH_PORT=22
+        fi
+        ;;
+    3|*)
+        SSH_PORT=$DEFAULT_SSH_PORT
+        info "Will use randomly generated SSH port: $SSH_PORT"
+        ;;
+esac
+
+# GitHub setup option
+read -p "Set up SSH key for GitHub access? [Y/n]: " SETUP_GITHUB
+
+# Logwatch option
+read -p "Install Logwatch for daily log analysis? [Y/n]: " SETUP_LOGWATCH
+
+#############################################################
+# Configuration Summary and Confirmation
+#############################################################
+log_section "Configuration Review"
+
+echo -e "${CYAN}Please review your configuration choices:${NC}"
+echo -e "${BLUE}├─ User Management:${NC}"
+if [[ "$USER_EXISTS" == "true" ]]; then
+    echo -e "${BLUE}│  ├─ User:${NC} $NEW_USER (existing user)"
+else
+    echo -e "${BLUE}│  ├─ User:${NC} $NEW_USER (will be created)"
+    if [[ "${GEN_PASS:-n}" == "n" || "${GEN_PASS:-n}" == "N" ]]; then
+        echo -e "${BLUE}│  └─ Password:${NC} Provided by user"
+    else
+        echo -e "${BLUE}│  └─ Password:${NC} Will be automatically generated and shown once"
+    fi
+fi
+
+echo -e "${BLUE}├─ System Configuration:${NC}"
+echo -e "${BLUE}├─ Hostname:${NC} $CURRENT_HOSTNAME → $SERVER_HOSTNAME"
+echo -e "${BLUE}├─ SSH Port:${NC} 22 → $SSH_PORT"
+
+echo -e "${BLUE}├─ Services to Install:${NC}"
+echo -e "${BLUE}│  ├─ Docker & Docker Compose${NC}"
+echo -e "${BLUE}│  ├─ Nginx Proxy Manager (ports 80,443,81)${NC}"
+echo -e "${BLUE}│  ├─ Git & SSH configuration${NC}"
+if [[ "$SETUP_GITHUB" != "n" && "$SETUP_GITHUB" != "N" ]]; then
+    echo -e "${BLUE}│  └─ GitHub SSH setup${NC}"
+else
+    echo -e "${BLUE}│  └─ GitHub SSH setup: NO${NC}"
+fi
+if [[ "$SETUP_LOGWATCH" != "n" && "$SETUP_LOGWATCH" != "N" ]]; then
+    echo -e "${BLUE}└─ Logwatch (daily log analysis)${NC}"
+else
+    echo -e "${BLUE}└─ Logwatch: NO${NC}"
+fi
+
+echo
+read -p "Proceed with this configuration? [y/n]: " CONFIRMATION
+if [[ "$CONFIRMATION" != "y" && "$CONFIRMATION" != "Y" ]]; then
+    info "Setup cancelled by user."
+    exit 0
+fi
+
+success "Configuration confirmed. Proceeding with setup..."
+
+#############################################################
+# User Management Execution
+#############################################################
+log_section "Creating User"
+
+if [[ "$CREATE_NEW_USER" == "true" ]]; then
     # Create user
     info "Creating new user '$NEW_USER'..."
     useradd -m -s /bin/bash "$NEW_USER" || { error "Failed to create user."; exit 1; }
     echo "$NEW_USER:$USER_PASS" | chpasswd || { error "Failed to set password."; exit 1; }
-    
+
     # Add user to sudo group
     usermod -aG sudo "$NEW_USER" || { error "Failed to add user to sudo group."; exit 1; }
     success "User '$NEW_USER' created and added to the sudo group."
-    
+
     if [[ "$GEN_PASS" != "n" && "$GEN_PASS" != "N" ]]; then
-        info "Generated password for '$NEW_USER': $USER_PASS"
-        instruction "IMPORTANT: Save this password immediately! It won't be shown again."
+        warn "AUTO-GENERATED PASSWORD: $USER_PASS"
+        instruction "⚠️  SAVE THIS PASSWORD IMMEDIATELY! It will not be shown again."
     fi
 fi
 
-# Prompt for hostname
-read -p "Enter hostname for the server (leave blank to use current hostname '$(hostname)'): " SERVER_HOSTNAME
-SERVER_HOSTNAME=${SERVER_HOSTNAME:-$(hostname)}
-hostnamectl set-hostname "$SERVER_HOSTNAME"
-info "Server hostname set to: $SERVER_HOSTNAME"
+# Set hostname
+if [[ "$SERVER_HOSTNAME" != "$CURRENT_HOSTNAME" ]]; then
+    hostnamectl set-hostname "$SERVER_HOSTNAME"
+    success "Server hostname changed from '$CURRENT_HOSTNAME' to '$SERVER_HOSTNAME'"
+else
+    success "Keeping current hostname: $CURRENT_HOSTNAME"
+fi
 
 
 # Update and upgrade system
