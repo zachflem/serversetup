@@ -111,7 +111,7 @@ trap cleanup SIGINT SIGTERM
 
 clear
 echo -e "${PURPLE}========================================================${NC}"
-echo -e "${PURPLE}         SERVER SETUP SCRIPT v0.8-101425-1857${NC}"
+echo -e "${PURPLE}         SERVER SETUP SCRIPT v0.9-101425-2001${NC}"
 echo -e "${PURPLE}========================================================${NC}"
 
 log_section "Starting Server Setup"
