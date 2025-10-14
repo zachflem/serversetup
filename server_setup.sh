@@ -2,8 +2,8 @@
 
 #############################################################
 # Server Setup Script for Debian-based Systems
-# Version: 0.7-091025-1007
-# 
+# Version: 0.8-101425-1857
+#
 # This script helps set up a new server with:
 # - New user with sudo access
 # - System hardening
@@ -410,36 +410,36 @@ log_section "SSH Configuration"
 
 info "Configuring SSH..."
 
-# Create SSH directory for the new user if it doesn't exist
+# Create SSH directory for the new user
 mkdir -p /home/$NEW_USER/.ssh
 chmod 700 /home/$NEW_USER/.ssh
 chown $NEW_USER:$NEW_USER /home/$NEW_USER/.ssh
 
-# Generate SSH key for the new user
-info "Generating SSH key pair for user '$NEW_USER'..."
-SSH_KEY_FILE="/home/$NEW_USER/.ssh/id_rsa"
-ssh-keygen -t rsa -b 4096 -f "$SSH_KEY_FILE" -N "" -C "$NEW_USER@$SERVER_HOSTNAME"
-chmod 600 "$SSH_KEY_FILE"
-chmod 644 "$SSH_KEY_FILE.pub"
-chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.ssh"
-success "SSH key pair generated for '$NEW_USER'."
-
-# Display the private key (to be saved by the user)
-info "Here is the private SSH key for user '$NEW_USER'. Save this to your local machine:"
-echo
-echo "------------BEGIN SSH PRIVATE KEY------------"
-cat "$SSH_KEY_FILE"
-echo "------------END SSH PRIVATE KEY------------"
-echo
-
-instruction "IMPORTANT: Copy this private key to your local machine and then delete it from the server!"
-instruction "You can save it to a file named id_rsa, set its permissions to 600, and use it to connect with:"
-instruction "ssh -i path/to/id_rsa -p $SSH_PORT $NEW_USER@your_server_ip"
-
-# Also display the public key
-info "Public SSH key for user '$NEW_USER':"
-cat "$SSH_KEY_FILE.pub"
-echo
+# Provide SSH key setup instructions
+instruction ""
+instruction "=== SSH Key Authentication Setup ==="
+instruction ""
+instruction "To securely access your server, set up SSH key authentication:"
+instruction ""
+instruction "1. ON YOUR LOCAL MACHINE, generate SSH keys (if you don't have any):"
+instruction "   ssh-keygen -t rsa -b 4096 -C 'your-email@example.com'"
+instruction ""
+instruction "2. Copy your public key to this server:"
+instruction "   ssh-copy-id -p $SSH_PORT $NEW_USER@your_server_ip"
+instruction ""
+instruction "3. Set proper permissions on your local private key:"
+instruction "   chmod 600 ~/.ssh/id_rsa"
+instruction ""
+instruction "4. Test SSH key authentication:"
+instruction "   ssh -p $SSH_PORT $NEW_USER@your_server_ip"
+instruction ""
+instruction "5. Once key authentication works, you can disable password login for better security:"
+instruction "   (SSH config will be set to allow both password and key auth during initial setup)"
+instruction ""
+instruction "IMPORTANT: Keep your SSH private key secure and never share it!"
+instruction "The server is configured to accept both password and key authentication."
+instruction ""
+success "SSH directory created for '$NEW_USER'. Follow the instructions above to set up key authentication."
 
 # Backup original SSH config
 cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
@@ -717,7 +717,7 @@ NEXT STEPS:
 ------------------
 1. Save your SSH private keys to your local machine
 2. Delete the private keys from the server
-3. Test SSH login with: ssh -i /path/to/key -p $SSH_PORT $NEW_USER@SERVER_IP
+3. Test SSH login with: ssh -p $SSH_PORT $NEW_USER@your_server_ip
 4. Configure SSL/TLS for Nginx (Let's Encrypt recommended)
 5. Configure your applications with Nginx
 6. Review and customize security settings as needed
