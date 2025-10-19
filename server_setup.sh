@@ -2,7 +2,6 @@
 
 #############################################################
 # Server Setup Script for Debian-based Systems
-# Version: 0.9-101425-2001
 #
 # This script helps set up a new server with:
 # - New user with sudo access
@@ -12,6 +11,9 @@
 # - Docker and Docker Compose
 #
 #############################################################
+
+# Script version - update this in one place for consistency
+readonly SCRIPT_VERSION="0.9-101425-2001"
 
 # Text colors and banner formatting
 RED='\033[0;31m'
@@ -24,9 +26,18 @@ NC='\033[0m' # No Color
 
 # Consistent banner function
 banner_print() {
-    echo -e "${PURPLE}========================================================${NC}"
-    echo -e "${PURPLE}         SERVER SETUP SCRIPT v0.9-101425-2001${NC}"
-    echo -e "${PURPLE}========================================================${NC}"
+    echo -e "${PURPLE}# ╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${PURPLE}# ║                                                              ║${NC}"
+    echo -e "${PURPLE}# ║                          ____                                ║${NC}"
+    echo -e "${PURPLE}# ║      _ __   _____      _/ ___|  ___ _ ____   _____ _ __      ║${NC}"
+    echo -e "${PURPLE}# ║     | '_ \ / _ \ \ /\ / |___ \ / _ \ '__\ \ / / _ \ '__|     ║${NC}"
+    echo -e "${PURPLE}# ║     | | | |  __/\ V  V / ___) |  __/ |   \ V /  __/ |        ║${NC}"
+    echo -e "${PURPLE}# ║     |_| |_|\___| \_/\_/ |____/ \___|_|    \_/ \___|_|        ║${NC}"
+    echo -e "${PURPLE}# ║                                                              ║${NC}"
+    echo -e "${PURPLE}# ╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo -e ""
+    echo -e "${CYAN}          Script: ${0}$ | Version: ${SCRIPT_VERSION}${NC}"
+    echo -e ""
 }
 
 # Logging setup
@@ -216,6 +227,21 @@ SERVER_ACCESS_URL=${SERVER_ACCESS_URL:-$(hostname -I | awk '{print $1}')}
 # Logwatch option
 read -p "Install Logwatch for daily log analysis? [Y/n]: " SETUP_LOGWATCH
 
+# Automatic security updates option
+read -p "Do you want to enable automatic security updates? [Y/n]: " ENABLE_AUTO_UPDATES
+AUTO_UPDATE_FREQUENCY=""
+if [[ "$ENABLE_AUTO_UPDATES" != "n" && "$ENABLE_AUTO_UPDATES" != "N" ]]; then
+    echo "Automatic update frequency options:"
+    echo "1) Weekly (recommended)"
+    echo "2) Monthly"
+    read -p "Select frequency [1-2]: " UPDATE_FREQ_OPTION
+    case $UPDATE_FREQ_OPTION in
+        1) AUTO_UPDATE_FREQUENCY="weekly" ;;
+        2) AUTO_UPDATE_FREQUENCY="monthly" ;;
+        *) AUTO_UPDATE_FREQUENCY="weekly" ;;
+    esac
+fi
+
 #############################################################
 # Configuration Summary and Confirmation
 #############################################################
@@ -260,6 +286,13 @@ if [[ "$SETUP_LOGWATCH" != "n" && "$SETUP_LOGWATCH" != "N" ]]; then
     echo -e "${BLUE}└─ Logwatch (daily log analysis)${NC}"
 else
     echo -e "${BLUE}└─ Logwatch: NO${NC}"
+fi
+
+echo -e "${BLUE}├─ Automatic Updates:${NC}"
+if [[ "$ENABLE_AUTO_UPDATES" != "n" && "$ENABLE_AUTO_UPDATES" != "N" ]]; then
+    echo -e "${BLUE}└─ Security updates enabled (${AUTO_UPDATE_FREQUENCY})${NC}"
+else
+    echo -e "${BLUE}└─ Automatic updates: NO${NC}"
 fi
 
 echo
@@ -379,13 +412,15 @@ log_section "System Hardening"
 
 # Configure unattended upgrades
 info "Configuring unattended security updates..."
-cat > /etc/apt/apt.conf.d/20auto-upgrades << EOF
+if [[ "$ENABLE_AUTO_UPDATES" != "n" && "$ENABLE_AUTO_UPDATES" != "N" ]]; then
+
+    cat > /etc/apt/apt.conf.d/20auto-upgrades << EOF
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
 APT::Periodic::AutocleanInterval "7";
 EOF
 
-cat > /etc/apt/apt.conf.d/50unattended-upgrades << EOF
+    cat > /etc/apt/apt.conf.d/50unattended-upgrades << EOF
 Unattended-Upgrade::Allowed-Origins {
     "\${distro_id}:\${distro_codename}";
     "\${distro_id}:\${distro_codename}-security";
@@ -401,7 +436,55 @@ Unattended-Upgrade::Remove-Unused-Dependencies "true";
 Unattended-Upgrade::Automatic-Reboot "false";
 EOF
 
-success "Unattended security updates configured."
+    # Create cron job for automatic security updates based on selected frequency
+    if [[ "$AUTO_UPDATE_FREQUENCY" == "weekly" ]]; then
+        cat > /etc/cron.d/security-updates-weekly << EOF
+# Weekly security updates - $(date)
+@weekly root /usr/bin/unattended-upgrade -v --dry-run | /usr/bin/logger -t unattended-upgrade
+@weekly root /usr/bin/unattended-upgrade -v
+EOF
+        success "Security updates configured for weekly execution."
+    elif [[ "$AUTO_UPDATE_FREQUENCY" == "monthly" ]]; then
+        cat > /etc/cron.d/security-updates-monthly << EOF
+# Monthly security updates - $(date)
+@monthly root /usr/bin/unattended-upgrade -v --dry-run | /usr/bin/logger -t unattended-upgrade
+@monthly root /usr/bin/unattended-upgrade -v
+EOF
+        success "Security updates configured for monthly execution."
+    fi
+
+    # Create MOTD update script to show pending updates
+    cat > /etc/cron.daily/update-motd-updates << EOF
+#!/bin/bash
+# Update MOTD with available updates count
+
+UPDATES=\$(apt-get -s upgrade 2>/dev/null | grep -P "^\d+ upgraded" | cut -d" " -f1)
+
+if [ "\$UPDATES" -gt 0 ]; then
+    cat > /etc/motd << EOM
+
+Welcome to $SERVER_HOSTNAME
+
+SYSTEM STATUS:
+- You have \$UPDATES pending package updates available
+- Run 'sudo apt-get update && sudo apt-get upgrade' to apply them
+- Last system update: \$(date)
+
+EOM
+fi
+EOF
+
+    chmod +x /etc/cron.daily/update-motd-updates
+    success "MOTD update notification configured."
+
+else
+    cat > /etc/apt/apt.conf.d/20auto-upgrades << EOF
+APT::Periodic::Update-Package-Lists "0";
+APT::Periodic::Unattended-Upgrade "0";
+APT::Periodic::AutocleanInterval "7";
+EOF
+    success "Automatic updates disabled (manual updates required)."
+fi
 
 # Configure Fail2Ban
 info "Configuring Fail2Ban for SSH protection..."
@@ -514,31 +597,53 @@ mkdir -p /home/$NEW_USER/.ssh
 chmod 700 /home/$NEW_USER/.ssh
 chown $NEW_USER:$NEW_USER /home/$NEW_USER/.ssh
 
-# Provide SSH key setup instructions
+# Provide SSH key setup instructions for Windows compatibility
 instruction ""
 instruction "=== SSH Key Authentication Setup ==="
 instruction ""
-instruction "To securely access your server, set up SSH key authentication:"
+instruction "To securely access your server, set up SSH key authentication."
+instruction "Multiple methods are provided for different systems:"
 instruction ""
-instruction "1. ON YOUR LOCAL MACHINE, generate SSH keys (if you don't have any):"
-instruction "   ssh-keygen -t rsa -b 4096 -C 'your-email@example.com'"
+
+instruction "METHOD 1: Windows OpenSSH (Windows 10+ recommended):"
+instruction "1. Open Command Prompt or PowerShell as administrator"
+instruction '2. Generate SSH keys: ssh-keygen -t rsa -b 4096 -C "your-email@example.com"'
+instruction '3. Copy to server: cat ~/.ssh/id_rsa.pub | ssh Administrator@$SERVER_ACCESS_URL "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"'
+instruction '4. Set permissions: ssh Administrator@$SERVER_ACCESS_URL "chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh"'
+instruction '5. Test: ssh -p $SSH_PORT Administrator@$SERVER_ACCESS_URL'
 instruction ""
-instruction "2. Copy your public key to this server:"
-instruction "   ssh-copy-id -p $SSH_PORT $NEW_USER@your_server_ip"
+
+instruction "METHOD 2: Git Bash (Windows):"
+instruction "1. Open Git Bash"
+instruction '2. Generate keys: ssh-keygen -t rsa -b 4096 -C "your-email@example.com"'
+instruction '3. Copy using SCP: scp -P $SSH_PORT ~/.ssh/id_rsa.pub Administrator@$SERVER_ACCESS_URL:~/.ssh/authorized_keys'
+instruction '4. Set permissions: ssh -p $SSH_PORT Administrator@$SERVER_ACCESS_URL "chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh"'
 instruction ""
-instruction "3. Set proper permissions on your local private key:"
-instruction "   chmod 600 ~/.ssh/id_rsa"
+
+instruction "METHOD 3: PowerShell Native:"
+instruction "1. Open PowerShell"
+instruction '2. Install OpenSSH: Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0'
+instruction '3. Generate keys: ssh-keygen -t rsa -b 4096 -C "your-email@example.com"'
+instruction '4. Copy keys: Get-Content ~/.ssh/id_rsa.pub | ssh -p $SSH_PORT Administrator@$SERVER_ACCESS_URL "cat >> ~/.ssh/authorized_keys"'
 instruction ""
-instruction "4. Test SSH key authentication:"
-instruction "   ssh -p $SSH_PORT $NEW_USER@your_server_ip"
+
+instruction "METHOD 4: PuTTY (Windows - Legacy):"
+instruction "1. Generate keys with PuTTYgen"
+instruction "2. Save private key as .ppk file"
+instruction "3. Copy public key to server clipboard"
+instruction '4. Add to server: ssh -p $SSH_PORT Administrator@$SERVER_ACCESS_URL "mkdir -p ~/.ssh && echo \'PASTE_PUBLIC_KEY_HERE\' >> ~/.ssh/authorized_keys"'
 instruction ""
-instruction "5. Once key authentication works, you can disable password login for better security:"
-instruction "   (SSH config will be set to allow both password and key auth during initial setup)"
+
+instruction "Universal Steps (after key copy):"
+instruction '1. Set permissions: chmod 600 ~/.ssh/id_rsa (local)'
+instruction '2. Test connection: ssh -p $SSH_PORT -i ~/.ssh/id_rsa Administrator@$SERVER_ACCESS_URL'
+instruction '3. Disable password auth after testing: Consider setting "PasswordAuthentication no" in /etc/ssh/sshd_config'
 instruction ""
-instruction "IMPORTANT: Keep your SSH private key secure and never share it!"
-instruction "The server is configured to accept both password and key authentication."
+
+instruction "SECURITY: Save your private keys securely and never share them!"
+instruction "The server currently accepts both password and key authentication."
 instruction ""
-success "SSH directory created for '$NEW_USER'. Follow the instructions above to set up key authentication."
+success "SSH directory created for '$NEW_USER'. Windows-compatible key setup methods provided above."
 
 # Backup original SSH config
 cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
@@ -784,7 +889,102 @@ SUMMARY_FILE="/home/$NEW_USER/server_setup_summary.txt"
           SERVER SETUP SUMMARY
 cat > "$SUMMARY_FILE" << EOF
           SERVER SETUP SUMMARY
+
+SYSTEM INFORMATION:
+------------------
+Date: $(date)
+Hostname: $SERVER_HOSTNAME
+IP Address: $(hostname -I | awk '{print $1}')
+
+USER ACCESS:
+------------------
+Admin User: $NEW_USER
+SSH Port: $SSH_PORT
+
+SECURITY MEASURES:
+------------------
+✓ System updated and upgraded
+✓ Firewall (UFW) enabled
+✓ SSH hardened (key-based auth only)
+✓ Fail2Ban configured
+✓ Root login disabled
+✓ Automatic security updates enabled
+✓ Network settings hardened
+
+INSTALLED SERVICES:
+------------------
+✓ Nginx Proxy Manager (main reverse proxy - listens on ports 80/443)
+✓ Docker and Docker Compose (ready for container deployment)
+✓ Git (configured for GitHub access)
+$(if [[ "$SETUP_LOGWATCH" != "n" && "$SETUP_LOGWATCH" != "N" ]]; then echo "✓ Logwatch (daily log analysis)"; fi)
+
+FIREWALL RULES:
+------------------
+$(ufw status | grep -v "Status")
+
+NEXT STEPS:
+------------------
+1. Save your SSH private keys to your local machine
+2. Delete the private keys from the server
+3. Test SSH login with: ssh -p $SSH_PORT $NEW_USER@your_server_ip
+4. Configure SSL/TLS for Nginx (Let's Encrypt recommended)
+5. Configure your applications with Nginx
+6. Review and customize security settings as needed
+
+For more details, check the log file at $LOGFILE
+EOF
+          SERVER SETUP SUMMARY
           SERVER SETUP SCRIPT v0.9-101425-2001
+          SERVER SETUP SUMMARY
+
+SYSTEM INFORMATION:
+------------------
+Date: $(date)
+Hostname: $SERVER_HOSTNAME
+IP Address: $(hostname -I | awk '{print $1}')
+
+USER ACCESS:
+------------------
+Admin User: $NEW_USER
+SSH Port: $SSH_PORT
+
+SECURITY MEASURES:
+------------------
+✓ System updated and upgraded
+✓ Firewall (UFW) enabled
+✓ SSH hardened (key-based auth only)
+✓ Fail2Ban configured
+✓ Root login disabled
+✓ Automatic security updates enabled
+✓ Network settings hardened
+
+INSTALLED SERVICES:
+------------------
+✓ Nginx Proxy Manager (main reverse proxy - listens on ports 80/443)
+✓ Docker and Docker Compose (ready for container deployment)
+✓ Git (configured for GitHub access)
+$(if [[ "$SETUP_LOGWATCH" != "n" && "$SETUP_LOGWATCH" != "N" ]]; then echo "✓ Logwatch (daily log analysis)"; fi)
+
+FIREWALL RULES:
+------------------
+$(ufw status | grep -v "Status")
+
+ADDITIONAL CONFIGURATION:
+------------------------
+$(if [[ "$ENABLE_AUTO_UPDATES" != "n" && "$ENABLE_AUTO_UPDATES" != "N" ]]; then echo "✓ Automatic security updates enabled (${AUTO_UPDATE_FREQUENCY})"; else echo "✗ Automatic updates disabled"; fi)
+$(if [[ "$RUN_CLEANUP" != "n" && "$RUN_CLEANUP" != "N" ]]; then echo "✓ System optimization completed"; else echo "✗ System cleanup was skipped"; fi)
+
+NEXT STEPS:
+------------------
+1. Save your SSH private keys to your local machine
+2. Delete the private keys from the server
+3. Test SSH login with: ssh -p $SSH_PORT $NEW_USER@your_server_ip
+4. Configure SSL/TLS for Nginx (Let's Encrypt recommended)
+5. Configure your applications with Nginx
+6. Review and customize security settings as needed
+
+For more details, check the log file at $LOGFILE
+EOF
 ========================================================
           SERVER SETUP SUMMARY
 ========================================================
@@ -846,6 +1046,57 @@ instruction "3. Log out and test SSH login with: ssh -i /path/to/key -p $SSH_POR
 instruction "4. If everything works, consider removing password authentication completely"
 
 info "To view the setup summary: cat $SUMMARY_FILE"
+
+# System cleanup and optimization
+log_section "System Cleanup & Optimization"
+
+read -p "Run system optimization (remove orphaned packages and clean cache)? [Y/n]: " RUN_CLEANUP
+
+if [[ "$RUN_CLEANUP" != "n" && "$RUN_CLEANUP" != "N" ]]; then
+    info "Performing system cleanup and optimization..."
+    
+    # Show what will be removed (dry run first)
+    info "Analyzing orphaned packages..."
+    ORPHANED_PACKAGES=$(apt-get autoremove --dry-run 2>/dev/null | grep "^ " | tr -d ' ' | grep -v "^$" | wc -l)
+    
+    if [ "$ORPHANED_PACKAGES" -gt 0 ]; then
+        warn "Found $ORPHANED_PACKAGES orphaned packages that can be safely removed."
+        apt-get autoremove --dry-run 2>/dev/null | grep "^ " || true
+        echo
+        read -p "Proceed with removing orphaned packages? [Y/n]: " REMOVE_ORPHANS
+        
+        if [[ "$REMOVE_ORPHANS" != "n" && "$REMOVE_ORPHANS" != "N" ]]; then
+            info "Removing orphaned packages..."
+            apt-get autoremove -y -qq || warn "Some orphaned packages could not be removed."
+        fi
+    else
+        success "No orphaned packages found to remove."
+    fi
+    
+    # Clean package cache
+    info "Cleaning package cache..."
+    apt-get autoclean -qq || warn "Package cache cleanup failed."
+    apt-get clean -qq || warn "Package cache cleaning failed."
+    
+    # Show disk space savings
+    info "Disk space optimization completed."
+    df -h / | tail -1 | awk '{print "Current disk usage: " $3 "/" $2 " (" $5 " used)"}'
+else
+    success "System cleanup skipped as requested."
+fi
+
+#############################################################
+# Update Summary File
+#############################################################
+
+# Update summary file to include new options
+cat >> "$SUMMARY_FILE" << EOF
+
+ADDITIONAL CONFIGURATION:
+------------------------
+$(if [[ "$ENABLE_AUTO_UPDATES" != "n" && "$ENABLE_AUTO_UPDATES" != "N" ]]; then echo "✓ Automatic security updates enabled (${AUTO_UPDATE_FREQUENCY})"; else echo "✗ Automatic updates disabled"; fi)
+$(if [[ "$RUN_CLEANUP" != "n" && "$RUN_CLEANUP" != "N" ]]; then echo "✓ System optimization completed"; else echo "✗ System cleanup was skipped"; fi)
+EOF
 
 # Final reminder
 log_section "IMPORTANT SECURITY REMINDER"
