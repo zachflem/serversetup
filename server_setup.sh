@@ -13,7 +13,7 @@
 #############################################################
 
 # Script version - update this in one place for consistency
-readonly SCRIPT_VERSION="0.9-201025-1750"
+readonly SCRIPT_VERSION="0.9-101425-2001"
 
 # Text colors and banner formatting
 RED='\033[0;31m'
@@ -23,6 +23,18 @@ BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
+
+# Terminal color support detection
+TERMINAL_SUPPORTS_COLORS=false
+if [[ -t 1 ]]; then
+    # Simple method: try to use tput colors
+    if command -v tput >/dev/null 2>&1; then
+        colors=$(tput colors 2>/dev/null || echo 0)
+        [[ "$colors" -ge 8 ]] && TERMINAL_SUPPORTS_COLORS=true
+    fi
+fi
+
+# Remove debug output after fixing
 
 # Consistent banner function
 banner_print() {
