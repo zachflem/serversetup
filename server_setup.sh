@@ -109,6 +109,35 @@ random_port() {
     echo $((RANDOM % 55535 + 10000))
 }
 
+# Standardized input functions for consistent UX
+prompt_options() {
+    local title="$1"
+    local prompt="$2"
+    local var_name="$3"
+    local options=("${@:4}")
+
+    echo -e "${BLUE}┌─ ${title}${NC}"
+    echo -e "${BLUE}│${NC}"
+    for i in "${!options[@]}"; do
+        echo -e "${BLUE}│  $((i+1)): ${options[$i]}${NC}"
+    done
+    echo -e "${BLUE}│${NC}"
+    echo -n "${BLUE}${prompt} ${NC}"
+
+    local choice
+    read -r choice
+
+    # Validate input
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#options[@]}" ]; then
+        eval "$var_name=$choice"
+        return 0
+    else
+        echo -e "${YELLOW}Invalid option. Please select 1-${#options[@]}${NC}"
+        prompt_options "$title" "$prompt" "$var_name" "${options[@]}"
+        return $?
+    fi
+}
+
 generate_password() {
     # Generate a strong random password (16 characters)
     < /dev/urandom tr -dc 'A-Za-z0-9!#$%&()*+,-./:;<=>?@[\]^_{|}~' | head -c 16
@@ -142,27 +171,56 @@ instruction "After reviewing your choices, you'll be asked to confirm before any
 #############################################################
 log_section "Configuration Collection"
 
-# Prompt for username
-read -p "Enter username for the new user (leave blank for 'admin'): " NEW_USER
-NEW_USER=${NEW_USER:-admin}
+# User Management Configuration
+prompt_options "User & Access Configuration" "Select option:" USER_CONFIG_CHOICE \
+    "Create New Admin User - Secure account with sudo privileges" \
+    "Use Existing User - Configure existing user account" \
+    "Skip User Setup - Manual user setup required"
 
-# Check if user exists and collect password
+# User creation handling
 USER_EXISTS=false
 CREATE_NEW_USER=false
-if id "$NEW_USER" &>/dev/null; then
+
+if [[ "$USER_CONFIG_CHOICE" == "1" ]]; then
+    # Create new user
+    CREATE_NEW_USER=true
+    read -p "Enter username for the new user (leave blank for 'admin'): " NEW_USER
+    NEW_USER=${NEW_USER:-admin}
+
+    # Check if user already exists
+    if id "$NEW_USER" &>/dev/null; then
+        warn "User '$NEW_USER' already exists."
+        read -p "Do you want to proceed with the existing user? [y/n]: " proceed
+        if [[ "$proceed" != "y" && "$proceed" != "Y" ]]; then
+            error "Setup cancelled by user."
+            exit 1
+        fi
+        USER_EXISTS=true
+        CREATE_NEW_USER=false
+        info "Will configure existing user '$NEW_USER'."
+    fi
+
+elif [[ "$USER_CONFIG_CHOICE" == "2" ]]; then
+    # Configure existing user
     USER_EXISTS=true
-    warn "User '$NEW_USER' already exists."
-    read -p "Do you want to proceed with the existing user? [y/n]: " proceed
-    if [[ "$proceed" != "y" && "$proceed" != "Y" ]]; then
-        error "Setup cancelled by user."
+    read -p "Enter the username of the existing user to configure: " NEW_USER
+    if ! id "$NEW_USER" &>/dev/null; then
+        error "User '$NEW_USER' does not exist."
         exit 1
     fi
-    info "Will use existing user '$NEW_USER'."
-else
-    CREATE_NEW_USER=true
-    # Generate or prompt for password
-    read -p "Generate a random password for '$NEW_USER'? [Y/n]: " GEN_PASS
-    if [[ "$GEN_PASS" == "n" || "$GEN_PASS" == "N" ]]; then
+    info "Will configure existing user '$NEW_USER'."
+fi
+
+# Password configuration (only for new users)
+if [[ "$CREATE_NEW_USER" == "true" ]]; then
+    prompt_options "Password Configuration" "Select option:" PASSWORD_CHOICE \
+        "Generate Secure Password - Automatic strong password creation" \
+        "Enter Custom Password - Manual password entry and confirmation"
+
+    if [[ "$PASSWORD_CHOICE" == "1" ]]; then
+        USER_PASS=$(generate_password)
+        GEN_PASS="y"
+    else
         read -s -p "Enter password for the new user: " USER_PASS
         echo
         read -s -p "Confirm password: " USER_PASS_CONFIRM
@@ -171,75 +229,123 @@ else
             error "Passwords do not match."
             exit 1
         fi
-    else
-        USER_PASS=$(generate_password)
+        GEN_PASS="n"
     fi
 fi
 
-# Prompt for hostname
-CURRENT_HOSTNAME=$(hostname)
-read -p "Enter hostname for the server (leave blank for '$CURRENT_HOSTNAME'): " SERVER_HOSTNAME
-SERVER_HOSTNAME=${SERVER_HOSTNAME:-$CURRENT_HOSTNAME}
-
-# SSH Port preference
-DEFAULT_SSH_PORT=$(random_port)
-echo "SSH Port Options:"
-echo "1) Keep the default port (22)"
-echo "2) Enter your own port number"
-echo "3) Use a randomly generated port ($DEFAULT_SSH_PORT)"
-read -p "Select SSH port option [1-3]: " SSH_PORT_OPTION
+# System Configuration
+prompt_options "SSH Port Configuration" "Select option:" SSH_PORT_CHOICE \
+    "Use Default SSH Port (22) - Standard port for compatibility" \
+    "Use Random SSH Port - Enhanced security with automatic selection" \
+    "Choose Custom SSH Port - Full control (enter manually)" \
+    "Skip SSH Port Config - Keep current settings"
 
 SSH_PORT=""
-case $SSH_PORT_OPTION in
+DEFAULT_SSH_PORT=$(random_port)
+
+case $SSH_PORT_CHOICE in
     1)
         SSH_PORT=22
         info "Will use default SSH port: 22"
         ;;
     2)
-        read -p "Enter your preferred SSH port: " SSH_PORT
-        # Make sure SSH port is valid (basic check - full validation later)
-        if ! [[ "$SSH_PORT" =~ ^[0-9]+$ ]] || [ "$SSH_PORT" -lt 1024 ] || [ "$SSH_PORT" -gt 65535 ]; then
-            warn "Port $SSH_PORT is invalid. Will use default port 22 during setup."
-            SSH_PORT=22
-        fi
-        ;;
-    3|*)
         SSH_PORT=$DEFAULT_SSH_PORT
         info "Will use randomly generated SSH port: $SSH_PORT"
         ;;
+    3)
+        read -p "Enter your preferred SSH port: " SSH_PORT
+        if ! [[ "$SSH_PORT" =~ ^[0-9]+$ ]] || [ "$SSH_PORT" -lt 1024 ] || [ "$SSH_PORT" -gt 65535 ]; then
+            warn "Port $SSH_PORT is invalid. Using default port 22."
+            SSH_PORT=22
+        fi
+        ;;
+    4)
+        SSH_PORT=22  # Default fallback
+        ;;
 esac
 
-# GitHub setup option
-read -p "Set up SSH key for GitHub access? [Y/n]: " SETUP_GITHUB
+# Hostname configuration
+CURRENT_HOSTNAME=$(hostname)
+read -p "Enter hostname for the server (leave blank for '$CURRENT_HOSTNAME'): " SERVER_HOSTNAME
+SERVER_HOSTNAME=${SERVER_HOSTNAME:-$CURRENT_HOSTNAME}
 
-# Collect GitHub credentials if selected
-GIT_USER=""
-GIT_EMAIL=""
-if [[ "$SETUP_GITHUB" != "n" && "$SETUP_GITHUB" != "N" ]]; then
-    read -p "Enter your GitHub username: " GIT_USER
-    read -p "Enter your Git commit email address: " GIT_EMAIL
-fi
-
-# Server access URL/IP - for SSH commands
+# Server access URL/IP
 read -p "Enter the IP address or domain you'll use to access this server: " SERVER_ACCESS_URL
 SERVER_ACCESS_URL=${SERVER_ACCESS_URL:-$(hostname -I | awk '{print $1}')}
 
-# Logwatch option
-read -p "Install Logwatch for daily log analysis? [Y/n]: " SETUP_LOGWATCH
+# Service Configuration
+prompt_options "Additional Services Configuration" "Select option:" SERVICES_CHOICE \
+    "Enable All Services - GitHub access, monitoring, and automatic updates" \
+    "Selective Services - Choose which services to enable" \
+    "Minimal Services Only - Skip optional services" \
+    "No Additional Services - Manual configuration required"
 
-# Automatic security updates option
-read -p "Do you want to enable automatic security updates? [Y/n]: " ENABLE_AUTO_UPDATES
-AUTO_UPDATE_FREQUENCY=""
-if [[ "$ENABLE_AUTO_UPDATES" != "n" && "$ENABLE_AUTO_UPDATES" != "N" ]]; then
-    echo "Automatic update frequency options:"
-    echo "1) Weekly (recommended)"
-    echo "2) Monthly"
-    read -p "Select frequency [1-2]: " UPDATE_FREQ_OPTION
-    case $UPDATE_FREQ_OPTION in
+SETUP_GITHUB="n"
+SETUP_LOGWATCH="n"
+ENABLE_AUTO_UPDATES="n"
+
+case $SERVICES_CHOICE in
+    1)
+        SETUP_GITHUB="y"
+        SETUP_LOGWATCH="y"
+        ENABLE_AUTO_UPDATES="y"
+        info "All services will be configured."
+        ;;
+    2)
+        # GitHub configuration
+        prompt_options "GitHub SSH Access" "Select option:" GITHUB_CHOICE \
+            "Enable GitHub SSH Access - Automated key generation and setup" \
+            "Skip GitHub Setup - Manual configuration required"
+
+        if [[ "$GITHUB_CHOICE" == "1" ]]; then
+            SETUP_GITHUB="y"
+            read -p "Enter your GitHub username: " GIT_USER
+            read -p "Enter your Git commit email address: " GIT_EMAIL
+        fi
+
+        # Logwatch configuration
+        prompt_options "System Monitoring" "Select option:" LOGWATCH_CHOICE \
+            "Enable Daily Log Analysis - Automated system monitoring" \
+            "Skip Log Monitoring - Manual log management"
+
+        if [[ "$LOGWATCH_CHOICE" == "1" ]]; then
+            SETUP_LOGWATCH="y"
+        fi
+
+        # Automatic updates configuration
+        prompt_options "Automatic Security Updates" "Select option:" UPDATES_CHOICE \
+            "Enable Auto Security Updates - Weekly system security updates" \
+            "Skip Auto Updates - Manual update management"
+
+        if [[ "$UPDATES_CHOICE" == "1" ]]; then
+            ENABLE_AUTO_UPDATES="y"
+            # Default to weekly - could add another prompt for frequency
+            AUTO_UPDATE_FREQUENCY="weekly"
+        fi
+        ;;
+    3|4)
+        # Already set to "n" above
+        info "Optional services will be skipped."
+        ;;
+esac
+
+# Set frequency for auto updates if enabled
+if [[ "$ENABLE_AUTO_UPDATES" == "y" ]]; then
+    prompt_options "Update Frequency" "Select frequency:" UPDATE_FREQ_CHOICE \
+        "Weekly Updates - Regular security maintenance" \
+        "Monthly Updates - Less frequent update checks"
+
+    case $UPDATE_FREQ_CHOICE in
         1) AUTO_UPDATE_FREQUENCY="weekly" ;;
         2) AUTO_UPDATE_FREQUENCY="monthly" ;;
-        *) AUTO_UPDATE_FREQUENCY="weekly" ;;
     esac
+fi
+
+GIT_USER=""
+GIT_EMAIL=""
+if [[ "$SETUP_GITHUB" == "y" ]]; then
+    read -p "Enter your GitHub username: " GIT_USER
+    read -p "Enter your Git commit email address: " GIT_EMAIL
 fi
 
 #############################################################
@@ -296,8 +402,11 @@ else
 fi
 
 echo
-read -p "Proceed with this configuration? [y/n]: " CONFIRMATION
-if [[ "$CONFIRMATION" != "y" && "$CONFIRMATION" != "Y" ]]; then
+prompt_options "Final Confirmation" "Select option:" CONFIRMATION \
+    "Yes - Proceed with this server setup configuration" \
+    "No - Cancel setup and make no changes"
+
+if [[ "$CONFIRMATION" == "2" ]]; then
     info "Setup cancelled by user."
     exit 0
 fi
@@ -856,11 +965,10 @@ EOF
 success "Log rotation configured."
 
 # Configure Logwatch if requested
-read -p "Install Logwatch for daily log analysis? [Y/n]: " SETUP_LOGWATCH
-if [[ "$SETUP_LOGWATCH" != "n" && "$SETUP_LOGWATCH" != "N" ]]; then
+if [[ "$SETUP_LOGWATCH" == "y" ]]; then
     info "Installing and configuring Logwatch..."
     apt-get install -y -qq logwatch
-    
+
     # Configure Logwatch for daily reports
     mkdir -p /etc/logwatch/conf
     cat > /etc/logwatch/conf/logwatch.conf << EOF
@@ -874,7 +982,7 @@ Range = yesterday
 Detail = Medium
 Service = All
 EOF
-    
+
     success "Logwatch installed and configured for daily reports."
 fi
 
