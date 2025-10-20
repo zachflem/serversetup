@@ -36,7 +36,7 @@ banner_print() {
     echo -e "${PURPLE}# ║                                                              ║${NC}"
     echo -e "${PURPLE}# ╚══════════════════════════════════════════════════════════════╝${NC}"
     echo -e ""
-    echo -e "${CYAN}          Script: ${0}$ | Version: ${SCRIPT_VERSION}${NC}"
+    echo -e "${CYAN}       Script: ${0}$ | Version: ${SCRIPT_VERSION}${NC}"
     echo -e ""
 }
 
@@ -116,13 +116,26 @@ prompt_options() {
     local var_name="$3"
     local options=("${@:4}")
 
-    echo -e "${BLUE}┌─ ${title}${NC}"
-    echo -e "${BLUE}│${NC}"
-    for i in "${!options[@]}"; do
-        echo -e "${BLUE}│  $((i+1)): ${options[$i]}${NC}"
-    done
-    echo -e "${BLUE}│${NC}"
-    echo -n "${BLUE}${prompt} ${NC}"
+    # Check if terminal supports ANSI colors
+    if [[ -t 1 ]] && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]; then
+        # Use ANSI colors
+        echo -e "${BLUE}┌─ ${title}${NC}"
+        echo -e "${BLUE}│${NC}"
+        for i in "${!options[@]}"; do
+            echo -e "${BLUE}│  $((i+1)): ${options[$i]}${NC}"
+        done
+        echo -e "${BLUE}│${NC}"
+        echo -n "${BLUE}${prompt} ${NC}"
+    else
+        # Plain text fallback
+        echo "┌─ $title"
+        echo "│"
+        for i in "${!options[@]}"; do
+            echo "│  $((i+1)): ${options[$i]}"
+        done
+        echo "│"
+        echo -n "$prompt "
+    fi
 
     local choice
     read -r choice
@@ -132,7 +145,12 @@ prompt_options() {
         eval "$var_name=$choice"
         return 0
     else
-        echo -e "${YELLOW}Invalid option. Please select 1-${#options[@]}${NC}"
+        # Handle error message with color detection
+        if [[ -t 1 ]] && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]; then
+            echo -e "${YELLOW}Invalid option. Please select 1-${#options[@]}${NC}"
+        else
+            echo "Invalid option. Please select 1-${#options[@]}"
+        fi
         prompt_options "$title" "$prompt" "$var_name" "${options[@]}"
         return $?
     fi
