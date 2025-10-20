@@ -15,41 +15,16 @@
 # Script version - update this in one place for consistency
 readonly SCRIPT_VERSION="0.9-101425-2001"
 
-# Text colors and banner formatting
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# Remove colors for maximum terminal compatibility
 
-# Terminal color support detection
-TERMINAL_SUPPORTS_COLORS=false
-if [[ -t 1 ]]; then
-    # Simple method: try to use tput colors
-    if command -v tput >/dev/null 2>&1; then
-        colors=$(tput colors 2>/dev/null || echo 0)
-        [[ "$colors" -ge 8 ]] && TERMINAL_SUPPORTS_COLORS=true
-    fi
-fi
-
-# Remove debug output after fixing
-
-# Consistent banner function
+# Consistent banner function - plain text only for compatibility
 banner_print() {
-    echo -e "${PURPLE}# ╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${PURPLE}# ║                                                              ║${NC}"
-    echo -e "${PURPLE}# ║                          ____                                ║${NC}"
-    echo -e "${PURPLE}# ║      _ __   _____      _/ ___|  ___ _ ____   _____ _ __      ║${NC}"
-    echo -e "${PURPLE}# ║     | '_ \ / _ \ \ /\ / |___ \ / _ \ '__\ \ / / _ \ '__|     ║${NC}"
-    echo -e "${PURPLE}# ║     | | | |  __/\ V  V / ___) |  __/ |   \ V /  __/ |        ║${NC}"
-    echo -e "${PURPLE}# ║     |_| |_|\___| \_/\_/ |____/ \___|_|    \_/ \___|_|        ║${NC}"
-    echo -e "${PURPLE}# ║                                                              ║${NC}"
-    echo -e "${PURPLE}# ╚══════════════════════════════════════════════════════════════╝${NC}"
-    echo -e ""
-    echo -e "${CYAN}       Script: ${0}$ | Version: ${SCRIPT_VERSION}${NC}"
-    echo -e ""
+    echo "# ==============================================="
+    echo "#"
+    echo "#            SERVER SETUP SCRIPT"
+    echo "#"
+    echo "# ========  Version: $SCRIPT_VERSION  ========"
+    echo ""
 }
 
 # Logging setup
@@ -65,34 +40,34 @@ log() {
 }
 
 log_section() {
-    echo -e "\n${PURPLE}===========================${NC}"
-    echo -e "${PURPLE}  $1${NC}"
-    echo -e "${PURPLE}===========================${NC}\n"
+    echo -e "\n==========================="
+    echo -e "  $1"
+    echo -e "===========================\n"
     log "SECTION: $1"
 }
 
 success() {
-    echo -e "${GREEN}✓ $1${NC}"
+    echo -e "✓ $1"
     log "SUCCESS: $1"
 }
 
 info() {
-    echo -e "${BLUE}ℹ $1${NC}"
+    echo -e "ℹ $1"
     log "INFO: $1"
 }
 
 warn() {
-    echo -e "${YELLOW}⚠ $1${NC}"
+    echo -e "⚠ $1"
     log "WARNING: $1"
 }
 
 error() {
-    echo -e "${RED}✗ $1${NC}" >&2
+    echo -e "✗ $1" >&2
     log "ERROR: $1"
 }
 
 instruction() {
-    echo -e "${CYAN}>> $1${NC}"
+    echo -e ">> $1"
     log "INSTRUCTION: $1"
 }
 
@@ -128,26 +103,17 @@ prompt_options() {
     local var_name="$3"
     local options=("${@:4}")
 
-    # Check if terminal supports ANSI colors
-    if [[ -t 1 ]] && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]; then
-        # Use ANSI colors
-        echo -e "${BLUE}┌─ ${title}${NC}"
-        echo -e "${BLUE}│${NC}"
-        for i in "${!options[@]}"; do
-            echo -e "${BLUE}│  $((i+1)): ${options[$i]}${NC}"
-        done
-        echo -e "${BLUE}│${NC}"
-        echo -n "${BLUE}${prompt} ${NC}"
-    else
-        # Plain text fallback
-        echo "┌─ $title"
-        echo "│"
-        for i in "${!options[@]}"; do
-            echo "│  $((i+1)): ${options[$i]}"
-        done
-        echo "│"
-        echo -n "$prompt "
-    fi
+    # Simple box design for broad compatibility
+    echo
+    echo "================================================"
+    echo " $title"
+    echo "================================================"
+    echo
+    for i in "${!options[@]}"; do
+        echo "  $((i+1)): ${options[$i]}"
+    done
+    echo
+    echo -n "Select option: "
 
     local choice
     read -r choice
@@ -157,12 +123,7 @@ prompt_options() {
         eval "$var_name=$choice"
         return 0
     else
-        # Handle error message with color detection
-        if [[ -t 1 ]] && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]; then
-            echo -e "${YELLOW}Invalid option. Please select 1-${#options[@]}${NC}"
-        else
-            echo "Invalid option. Please select 1-${#options[@]}"
-        fi
+        echo "Invalid option. Please select 1-${#options[@]}"
         prompt_options "$title" "$prompt" "$var_name" "${options[@]}"
         return $?
     fi
@@ -193,13 +154,15 @@ banner_print
 check_root
 check_os
 
-instruction "Let's collect all the configuration information first."
+info "Let's collect all the configuration information first."
+instruction ""
 instruction "After reviewing your choices, you'll be asked to confirm before any changes are made."
+instruction ""
 
 #############################################################
 # Configuration Collection Phase
 #############################################################
-log_section "Configuration Collection"
+# log_section "Configuration Collection"
 
 # User Management Configuration
 prompt_options "User & Access Configuration" "Select option:" USER_CONFIG_CHOICE \
