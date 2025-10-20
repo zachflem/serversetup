@@ -13,7 +13,7 @@
 #############################################################
 
 # Script version - update this in one place for consistency
-readonly SCRIPT_VERSION="0.9-101425-2001"
+readonly SCRIPT_VERSION="0.9-201025-1750"
 
 # Text colors and banner formatting
 RED='\033[0;31m'
@@ -177,7 +177,7 @@ trap cleanup SIGINT SIGTERM
 clear
 banner_print
 
-log_section "Starting Server Setup"
+# log_section "Starting Server Setup"
 check_root
 check_os
 
