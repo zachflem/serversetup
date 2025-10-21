@@ -19,11 +19,16 @@ readonly SCRIPT_VERSION="0.9-101425-2001"
 
 # Consistent banner function - plain text only for compatibility
 banner_print() {
-    echo "# ==============================================="
-    echo "#"
-    echo "#            SERVER SETUP SCRIPT"
-    echo "#"
-    echo "# ========  Version: $SCRIPT_VERSION  ========"
+    echo "# ╔══════════════════════════════════════════════════════════════╗"
+    echo "# ║                          ____                                ║"
+    echo "# ║      _ __   _____      _/ ___|  ___ _ ____   _____ _ __      ║"
+    echo "# ║     | '_ \ / _ \ \ /\ / |___ \ / _ \ '__\ \ / / _ \ '__|     ║"
+    echo "# ║     | | | |  __/\ V  V / ___) |  __/ |   \ V /  __/ |        ║"
+    echo "# ║     |_| |_|\___| \_/\_/ |____/ \___|_|    \_/ \___|_|        ║"
+    echo "# ║                                                              ║"
+    echo "# ╚══════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "# ================  Version: $SCRIPT_VERSION  ================"
     echo ""
 }
 
@@ -723,10 +728,10 @@ instruction '4. Set permissions: ssh -p $SSH_PORT Administrator@$SERVER_ACCESS_U
 instruction ""
 
 instruction "METHOD 3: PowerShell Native:"
-instruction "1. Open PowerShell"
-instruction '2. Install OpenSSH: Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0'
-instruction '3. Generate keys: ssh-keygen -t rsa -b 4096 -C "your-email@example.com"'
-instruction '4. Copy keys: Get-Content ~/.ssh/id_rsa.pub | ssh -p $SSH_PORT Administrator@$SERVER_ACCESS_URL "cat >> ~/.ssh/authorized_keys"'
+instruction "1. Open PowerShell"  
+instruction '2. Generate keys: ssh-keygen -t rsa -b 4096 -C "your-email@example.com"'
+instruction '3. Copy keys: Get-Content ~/.ssh/id_rsa.pub | ssh -p $SSH_PORT Administrator@$SERVER_ACCESS_URL "cat >> ~/.ssh/authorized_keys"'
+instruction '4. Set permissions: ssh Administrator@$SERVER_ACCESS_URL "chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh"'
 instruction ""
 
 instruction "METHOD 4: PuTTY (Windows - Legacy):"
@@ -736,10 +741,17 @@ instruction "3. Copy public key to server clipboard"
 instruction '4. Add to server: ssh -p $SSH_PORT Administrator@$SERVER_ACCESS_URL "mkdir -p ~/.ssh && echo \'PASTE_PUBLIC_KEY_HERE\' >> ~/.ssh/authorized_keys"'
 instruction ""
 
-instruction "Universal Steps (after key copy):"
-instruction '1. Set permissions: chmod 600 ~/.ssh/id_rsa (local)'
-instruction '2. Test connection: ssh -p $SSH_PORT -i ~/.ssh/id_rsa Administrator@$SERVER_ACCESS_URL'
-instruction '3. Disable password auth after testing: Consider setting "PasswordAuthentication no" in /etc/ssh/sshd_config'
+instruction "METHOD 5: Linux/Unix (ssh-copy-id):"
+instruction "1. Open terminal on your local machine"
+instruction '2. Generate keys (if not already done): ssh-keygen -t rsa -b 4096 -C "your-email@example.com"'
+instruction "3. Copy to server: ssh-copy-id -p $SSH_PORT Administrator@$SERVER_ACCESS_URL"
+instruction "4. Or manually: ssh-copy-id -p $SSH_PORT -i ~/.ssh/id_rsa.pub Administrator@$SERVER_ACCESS_URL"
+instruction ""
+
+instruction "UNIVERSAL STEPS (after key copy):"
+instruction "1. Set permissions: chmod 600 ~/.ssh/id_rsa (local)"
+instruction "2. Test connection: ssh -p $SSH_PORT -i ~/.ssh/id_rsa Administrator@$SERVER_ACCESS_URL"
+instruction "3. Disable password auth after testing: Consider setting 'PasswordAuthentication no' in /etc/ssh/sshd_config"
 instruction ""
 
 instruction "SECURITY: Save your private keys securely and never share them!"
