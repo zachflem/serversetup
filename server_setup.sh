@@ -713,45 +713,49 @@ instruction "Multiple methods are provided for different systems:"
 instruction ""
 
 instruction "METHOD 1: Windows OpenSSH (Windows 10+ recommended):"
-instruction "1. Open Command Prompt or PowerShell as administrator"
-instruction '2. Generate SSH keys: ssh-keygen -t rsa -b 4096 -C "your-email@example.com"'
-instruction '3. Copy to server: cat ~/.ssh/id_rsa.pub | ssh Administrator@$SERVER_ACCESS_URL "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"'
-instruction '4. Set permissions: ssh Administrator@$SERVER_ACCESS_URL "chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh"'
-instruction '5. Test: ssh -p $SSH_PORT Administrator@$SERVER_ACCESS_URL'
+instruction "1. Open Command Prompt or PowerShell (run as administrator)"
+instruction "2. Generate SSH keys: ssh-keygen -t rsa -b 4096 -C \"your-email@example.com\""
+instruction "3. Copy to server: scp -P $SSH_PORT ~/.ssh/id_rsa.pub $NEW_USER@$SERVER_ACCESS_URL:~/.ssh/authorized_keys"
+instruction "4. Set permissions: ssh -p $SSH_PORT $NEW_USER@$SERVER_ACCESS_URL \"chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh\""
+instruction "5. Test: ssh -p $SSH_PORT $NEW_USER@$SERVER_ACCESS_URL"
 instruction ""
 
 instruction "METHOD 2: Git Bash (Windows):"
 instruction "1. Open Git Bash"
-instruction '2. Generate keys: ssh-keygen -t rsa -b 4096 -C "your-email@example.com"'
-instruction '3. Copy using SCP: scp -P $SSH_PORT ~/.ssh/id_rsa.pub Administrator@$SERVER_ACCESS_URL:~/.ssh/authorized_keys'
-instruction '4. Set permissions: ssh -p $SSH_PORT Administrator@$SERVER_ACCESS_URL "chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh"'
+instruction "2. Generate keys: ssh-keygen -t rsa -b 4096 -C \"your-email@example.com\""
+instruction "3. Copy using SCP: scp -P $SSH_PORT ~/.ssh/id_rsa.pub $NEW_USER@$SERVER_ACCESS_URL:~/.ssh/authorized_keys"
+instruction "4. Set permissions: ssh -p $SSH_PORT $NEW_USER@$SERVER_ACCESS_URL \"chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh\""
+instruction "5. Test: ssh -p $SSH_PORT $NEW_USER@$SERVER_ACCESS_URL"
 instruction ""
 
-instruction "METHOD 3: PowerShell Native:"
-instruction "1. Open PowerShell"  
-instruction '2. Generate keys: ssh-keygen -t rsa -b 4096 -C "your-email@example.com"'
-instruction '3. Copy keys: Get-Content ~/.ssh/id_rsa.pub | ssh -p $SSH_PORT Administrator@$SERVER_ACCESS_URL "cat >> ~/.ssh/authorized_keys"'
-instruction '4. Set permissions: ssh Administrator@$SERVER_ACCESS_URL "chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh"'
+instruction "METHOD 3: PowerShell (with OpenSSH):"
+instruction "1. Open PowerShell (run as administrator)"
+instruction "2. Generate keys: ssh-keygen -t rsa -b 4096 -C \"your-email@example.com\""
+instruction "3. Copy keys: scp -P $SSH_PORT ~/.ssh/id_rsa.pub $NEW_USER@$SERVER_ACCESS_URL:~/.ssh/authorized_keys"
+instruction "4. Set permissions: ssh -p $SSH_PORT $NEW_USER@$SERVER_ACCESS_URL \"chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh\""
+instruction "5. Test: ssh -p $SSH_PORT $NEW_USER@$SERVER_ACCESS_URL"
 instruction ""
 
 instruction "METHOD 4: PuTTY (Windows - Legacy):"
-instruction "1. Generate keys with PuTTYgen"
-instruction "2. Save private key as .ppk file"
-instruction "3. Copy public key to server clipboard"
-instruction '4. Add to server: ssh -p $SSH_PORT Administrator@$SERVER_ACCESS_URL "mkdir -p ~/.ssh && echo \'PASTE_PUBLIC_KEY_HERE\' >> ~/.ssh/authorized_keys"'
+instruction "1. Generate keys with PuTTYgen (save private key as .ppk file)"
+instruction "2. Export public key in OpenSSH format and save to new file"
+instruction "3. Copy public key file: scp -P $SSH_PORT ~/.ssh/id_rsa.pub $NEW_USER@$SERVER_ACCESS_URL:~/.ssh/"
+instruction "4. Set permissions: ssh -p $SSH_PORT $NEW_USER@$SERVER_ACCESS_URL \"chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh\""
+instruction "5. Test: ssh -p $SSH_PORT -i ~/.ssh/id_rsa $NEW_USER@$SERVER_ACCESS_URL"
 instruction ""
 
-instruction "METHOD 5: Linux/Unix (ssh-copy-id):"
-instruction "1. Open terminal on your local machine"
-instruction '2. Generate keys (if not already done): ssh-keygen -t rsa -b 4096 -C "your-email@example.com"'
-instruction "3. Copy to server: ssh-copy-id -p $SSH_PORT Administrator@$SERVER_ACCESS_URL"
-instruction "4. Or manually: ssh-copy-id -p $SSH_PORT -i ~/.ssh/id_rsa.pub Administrator@$SERVER_ACCESS_URL"
+instruction "METHOD 5: Linux/macOS (ssh-copy-id):"
+instruction "1. Open terminal"
+instruction "2. Generate keys (if not already done): ssh-keygen -t rsa -b 4096 -C \"your-email@example.com\""
+instruction "3. Copy to server: ssh-copy-id -p $SSH_PORT $NEW_USER@$SERVER_ACCESS_URL"
+instruction "4. Or manually: ssh-copy-id -p $SSH_PORT -i ~/.ssh/id_rsa.pub $NEW_USER@$SERVER_ACCESS_URL"
 instruction ""
 
-instruction "UNIVERSAL STEPS (after key copy):"
-instruction "1. Set permissions: chmod 600 ~/.ssh/id_rsa (local)"
-instruction "2. Test connection: ssh -p $SSH_PORT -i ~/.ssh/id_rsa Administrator@$SERVER_ACCESS_URL"
-instruction "3. Disable password auth after testing: Consider setting 'PasswordAuthentication no' in /etc/ssh/sshd_config"
+instruction "IMPORTANT NOTES:"
+instruction "• Replace 'Administrator' with actual server username: $NEW_USER"
+instruction "• Replace server address with: $SERVER_ACCESS_URL"
+instruction "• Use the correct SSH port: $SSH_PORT (not the default port 22)"
+instruction "• The server currently accepts both password and key authentication"
 instruction ""
 
 instruction "SECURITY: Save your private keys securely and never share them!"
