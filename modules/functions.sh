@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Source configuration
-source "$(dirname "${BASH_SOURCE[0]}")/config.sh"
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+source "$SCRIPT_DIR/config.sh"
 
 #############################################################
 # Logging Functions

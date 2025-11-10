@@ -15,9 +15,9 @@
 
 # Source required files
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-source "$SCRIPT_DIR/config.sh"
-source "$SCRIPT_DIR/functions.sh"
-source "$SCRIPT_DIR/validation.sh"
+source "$SCRIPT_DIR/modules/config.sh"
+source "$SCRIPT_DIR/modules/functions.sh"
+source "$SCRIPT_DIR/modules/validation.sh"
 
 # Initialize script
 init_script
@@ -60,10 +60,10 @@ banner_print() {
     cat << "EOF"
 # ╔══════════════════════════════════════════════════════════════╗
 # ║                          ____                                ║
-# ║      _ __   _____      _/ ___|  ___ _ ____   _____ _ __    ║
-# ║     | '_ \ / _ \ \ /\ / |___ \ / _ \ '__\ \ / / _ \ '__|   ║
-# ║     | | | |  __/\ V  V / ___) |  __/ |   \ V /  __/ |      ║
-# ║     |_| |_|\___| \_/\_/ |____/ \___|_|    \_/ \___|_|      ║
+# ║      _ __   _____      _/ ___|  ___ _ ____   _____ _ __      ║
+# ║     | '_ \ / _ \ \ /\ / |___ \ / _ \ '__\ \ / / _ \ '__|     ║
+# ║     | | | |  __/\ V  V / ___) |  __/ |   \ V /  __/ |        ║
+# ║     |_| |_|\___| \_/\_/ |____/ \___|_|    \_/ \___|_|        ║
 # ║                                                              ║
 # ╚══════════════════════════════════════════════════════════════╝
 EOF
@@ -384,7 +384,7 @@ success "Packages upgraded."
 log_section "Installing Required Packages and Monitoring"
 
 # Source monitoring functions
-source "$SCRIPT_DIR/monitoring.sh"
+source "$SCRIPT_DIR/modules/monitoring.sh"
 
 # Setup monitoring and logging
 setup_monitoring
@@ -540,7 +540,7 @@ ignoreregex =
 EOF
 
 # Copy our enhanced fail2ban configuration
-cp fail2ban.local /etc/fail2ban/jail.local
+cp "$SCRIPT_DIR/modules/fail2ban.local" /etc/fail2ban/jail.local
 
 # Set proper permissions
 chmod 644 /etc/fail2ban/jail.local

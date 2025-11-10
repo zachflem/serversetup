@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # Source configuration and functions
-source "$(dirname "${BASH_SOURCE[0]}")/config.sh"
-source "$(dirname "${BASH_SOURCE[0]}")/functions.sh"
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+source "$SCRIPT_DIR/config.sh"
+source "$SCRIPT_DIR/functions.sh"
 
 #############################################################
 # Input Validation Functions
