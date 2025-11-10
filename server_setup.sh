@@ -10,143 +10,67 @@
 # - Nginx Proxy Manager (primary reverse proxy on ports 80/443)
 # - Docker and Docker Compose
 #
+# Version: See config.sh for current version
 #############################################################
 
-# Script version - update this in one place for consistency
-readonly SCRIPT_VERSION="0.9-101425-2001"
+# Source required files
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+source "$SCRIPT_DIR/config.sh"
+source "$SCRIPT_DIR/functions.sh"
+source "$SCRIPT_DIR/validation.sh"
 
-# Remove colors for maximum terminal compatibility
+# Initialize script
+init_script
 
-# Consistent banner function - plain text only for compatibility
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --config)
+            CONFIG_FILE="$2"
+            shift 2
+            ;;
+        --non-interactive)
+            NON_INTERACTIVE=true
+            shift
+            ;;
+        --help)
+            echo "Usage: $0 [options]"
+            echo "Options:"
+            echo "  --config FILE        Use specified config file"
+            echo "  --non-interactive    Run in non-interactive mode"
+            echo "  --help              Show this help message"
+            exit 0
+            ;;
+        *)
+            error "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# Load custom configuration if provided
+if [[ -n "$CONFIG_FILE" ]]; then
+    info "Loading configuration from $CONFIG_FILE"
+    load_config "$CONFIG_FILE"
+fi
+
+
+# Display banner
 banner_print() {
-    echo "# ╔══════════════════════════════════════════════════════════════╗"
-    echo "# ║                          ____                                ║"
-    echo "# ║      _ __   _____      _/ ___|  ___ _ ____   _____ _ __      ║"
-    echo "# ║     | '_ \ / _ \ \ /\ / |___ \ / _ \ '__\ \ / / _ \ '__|     ║"
-    echo "# ║     | | | |  __/\ V  V / ___) |  __/ |   \ V /  __/ |        ║"
-    echo "# ║     |_| |_|\___| \_/\_/ |____/ \___|_|    \_/ \___|_|        ║"
-    echo "# ║                                                              ║"
-    echo "# ╚══════════════════════════════════════════════════════════════╝"
-    echo ""
+    cat << "EOF"
+# ╔══════════════════════════════════════════════════════════════╗
+# ║                          ____                                ║
+# ║      _ __   _____      _/ ___|  ___ _ ____   _____ _ __    ║
+# ║     | '_ \ / _ \ \ /\ / |___ \ / _ \ '__\ \ / / _ \ '__|   ║
+# ║     | | | |  __/\ V  V / ___) |  __/ |   \ V /  __/ |      ║
+# ║     |_| |_|\___| \_/\_/ |____/ \___|_|    \_/ \___|_|      ║
+# ║                                                              ║
+# ╚══════════════════════════════════════════════════════════════╝
+EOF
+    echo
     echo "# ================  Version: $SCRIPT_VERSION  ================"
-    echo ""
-}
-
-# Logging setup
-LOGFILE="/var/log/server_setup.log"
-mkdir -p "$(dirname "$LOGFILE")" 2>/dev/null
-touch "$LOGFILE" 2>/dev/null
-
-# Functions
-log() {
-    local timestamp
-    timestamp=$(date "+%Y-%m-%d %H:%M:%S")
-    echo -e "${timestamp} - $1" >> "$LOGFILE"
-}
-
-log_section() {
-    echo -e "\n==========================="
-    echo -e "  $1"
-    echo -e "===========================\n"
-    log "SECTION: $1"
-}
-
-success() {
-    echo -e "✓ $1"
-    log "SUCCESS: $1"
-}
-
-info() {
-    echo -e "ℹ $1"
-    log "INFO: $1"
-}
-
-warn() {
-    echo -e "⚠ $1"
-    log "WARNING: $1"
-}
-
-error() {
-    echo -e "✗ $1" >&2
-    log "ERROR: $1"
-}
-
-instruction() {
-    echo -e ">> $1"
-    log "INSTRUCTION: $1"
-}
-
-check_root() {
-    if [[ $EUID -ne 0 ]]; then
-        error "This script must be run as root or with sudo privileges."
-        exit 1
-    fi
-    success "Running with root privileges."
-}
-
-check_os() {
-    if [[ -f /etc/os-release ]]; then
-        source /etc/os-release
-        if [[ "$ID" == "ubuntu" || "$ID" == "debian" || "$ID_LIKE" == *"debian"* ]]; then
-            success "Detected supported OS: $PRETTY_NAME"
-            return 0
-        fi
-    fi
-    error "This script is designed for Debian-based systems (e.g., Ubuntu, Debian)."
-    exit 1
-}
-
-random_port() {
-    # Generate a random port number between 10000 and 65535
-    echo $((RANDOM % 55535 + 10000))
-}
-
-# Standardized input functions for consistent UX
-prompt_options() {
-    local title="$1"
-    local prompt="$2"
-    local var_name="$3"
-    local options=("${@:4}")
-
-    # Simple box design for broad compatibility
     echo
-    echo "================================================"
-    echo " $title"
-    echo "================================================"
-    echo
-    for i in "${!options[@]}"; do
-        echo "  $((i+1)): ${options[$i]}"
-    done
-    echo
-    echo -n "Select option: "
-
-    local choice
-    read -r choice
-
-    # Validate input
-    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#options[@]}" ]; then
-        eval "$var_name=$choice"
-        return 0
-    else
-        echo "Invalid option. Please select 1-${#options[@]}"
-        prompt_options "$title" "$prompt" "$var_name" "${options[@]}"
-        return $?
-    fi
 }
-
-generate_password() {
-    # Generate a strong random password (16 characters)
-    < /dev/urandom tr -dc 'A-Za-z0-9!#$%&()*+,-./:;<=>?@[\]^_{|}~' | head -c 16
-}
-
-cleanup() {
-    log "Script execution interrupted. Cleaning up..."
-    # Add cleanup tasks if needed
-    exit 1
-}
-
-# Trap for cleanup on script termination
-trap cleanup SIGINT SIGTERM
 
 #############################################################
 # Main Script Execution
@@ -155,9 +79,14 @@ trap cleanup SIGINT SIGTERM
 clear
 banner_print
 
-# log_section "Starting Server Setup"
-check_root
-check_os
+# Start setup process
+info "Starting server setup process..."
+
+# Check requirements
+start_progress "Checking system requirements"
+check_system_requirements
+end_progress $?
+
 
 info "Let's collect all the configuration information first."
 instruction ""
@@ -451,25 +380,22 @@ info "Upgrading installed packages. This might take a while..."
 apt-get upgrade -y -qq || { error "Failed to upgrade packages."; exit 1; }
 success "Packages upgraded."
 
-# Install required packages
-log_section "Installing Required Packages"
-info "Installing essential packages..."
-apt-get install -y -qq \
-    sudo \
-    ufw \
-    fail2ban \
-    curl \
-    gnupg2 \
-    ca-certificates \
-    lsb-release \
-    apt-transport-https \
-    unattended-upgrades \
-    git \
-    htop \
-    iotop \
-    ncdu \
-    net-tools || { error "Failed to install essential packages."; exit 1; }
-success "Essential packages installed."
+# Install required packages and setup monitoring
+log_section "Installing Required Packages and Monitoring"
+
+# Source monitoring functions
+source "$SCRIPT_DIR/monitoring.sh"
+
+# Setup monitoring and logging
+setup_monitoring
+setup_logging
+
+# Configure monitoring alerts if email notifications are enabled
+if [[ "$EMAIL_NOTIFICATIONS" == "yes" && -n "$NOTIFICATION_EMAIL" ]]; then
+    setup_alerts "$NOTIFICATION_EMAIL"
+fi
+
+success "System monitoring and logging configured."
 
 # Install Docker
 log_section "Installing Docker"
@@ -593,25 +519,57 @@ EOF
     success "Automatic updates disabled (manual updates required)."
 fi
 
-# Configure Fail2Ban
-info "Configuring Fail2Ban for SSH protection..."
-cat > /etc/fail2ban/jail.local << EOF
-[DEFAULT]
-bantime = 86400
-findtime = 600
-maxretry = 5
+# Configure Fail2Ban with enhanced protection
+info "Configuring Fail2Ban with enhanced security rules..."
 
-[sshd]
-enabled = true
-port = ssh
-filter = sshd
-logpath = /var/log/auth.log
-maxretry = 3
+# Create custom filter directory if it doesn't exist
+mkdir -p /etc/fail2ban/filter.d
+
+# Create custom Nginx filters
+cat > /etc/fail2ban/filter.d/nginx-noscript.conf << EOF
+[Definition]
+failregex = ^<HOST> .*(\.php|\.asp|\.exe|\.pl|\.cgi|\.scgi)
+ignoreregex =
 EOF
 
+cat > /etc/fail2ban/filter.d/nginx-badbots.conf << EOF
+[Definition]
+badbots = (?:wget|curl|HTTrack|clshttp|archiver|loader|email|harvest|extract|grab|miner|libwww-perl|python|nikto|scan|exploit|hack|crack)
+failregex = ^<HOST> -.*"(GET|POST|HEAD).*HTTP.*"(?:%(badbots)s|Bot)"
+ignoreregex =
+EOF
+
+# Copy our enhanced fail2ban configuration
+cp fail2ban.local /etc/fail2ban/jail.local
+
+# Set proper permissions
+chmod 644 /etc/fail2ban/jail.local
+chmod 644 /etc/fail2ban/filter.d/nginx-noscript.conf
+chmod 644 /etc/fail2ban/filter.d/nginx-badbots.conf
+
+# Create fail2ban log file
+touch /var/log/fail2ban.log
+chmod 644 /var/log/fail2ban.log
+
+# Enable and restart fail2ban
 systemctl enable fail2ban
 systemctl restart fail2ban
-success "Fail2Ban configured for SSH protection."
+
+# Add fail2ban log to logrotate
+cat > /etc/logrotate.d/fail2ban << EOF
+/var/log/fail2ban.log {
+    weekly
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    postrotate
+        fail2ban-client flushlogs >/dev/null
+    endscript
+}
+EOF
+
+success "Enhanced Fail2Ban configuration applied with additional protection rules."
 
 # Configure sysctl for security
 info "Hardening network settings..."
@@ -714,26 +672,26 @@ instruction ""
 
 instruction "METHOD 1: Windows OpenSSH (Windows 10+ recommended):"
 instruction "1. Open Command Prompt or PowerShell (run as administrator)"
-instruction "2. Generate SSH keys: ssh-keygen -t rsa -b 4096 -C \"your-email@example.com\""
-instruction "3. Copy to server: scp -P $SSH_PORT ~/.ssh/id_rsa.pub $NEW_USER@$SERVER_ACCESS_URL:~/.ssh/authorized_keys"
+instruction "2. Generate SSH keys: ssh-keygen -t ed25519 -C \"your-email@example.com\""
+instruction "3. Copy to server: scp -P $SSH_PORT ~/.ssh/id_ed25519.pub $NEW_USER@$SERVER_ACCESS_URL:~/.ssh/authorized_keys"
 instruction "4. Set permissions: ssh -p $SSH_PORT $NEW_USER@$SERVER_ACCESS_URL \"chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh\""
-instruction "5. Test: ssh -p $SSH_PORT $NEW_USER@$SERVER_ACCESS_URL"
+instruction "5. Test: ssh -p $SSH_PORT -i ~/.ssh/id_ed25519 $NEW_USER@$SERVER_ACCESS_URL"
 instruction ""
 
 instruction "METHOD 2: Git Bash (Windows):"
 instruction "1. Open Git Bash"
-instruction "2. Generate keys: ssh-keygen -t rsa -b 4096 -C \"your-email@example.com\""
-instruction "3. Copy using SCP: scp -P $SSH_PORT ~/.ssh/id_rsa.pub $NEW_USER@$SERVER_ACCESS_URL:~/.ssh/authorized_keys"
+instruction "2. Generate keys: ssh-keygen -t ed25519 -C \"your-email@example.com\""
+instruction "3. Copy using SCP: scp -P $SSH_PORT ~/.ssh/id_ed25519.pub $NEW_USER@$SERVER_ACCESS_URL:~/.ssh/authorized_keys"
 instruction "4. Set permissions: ssh -p $SSH_PORT $NEW_USER@$SERVER_ACCESS_URL \"chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh\""
-instruction "5. Test: ssh -p $SSH_PORT $NEW_USER@$SERVER_ACCESS_URL"
+instruction "5. Test: ssh -p $SSH_PORT -i ~/.ssh/id_ed25519 $NEW_USER@$SERVER_ACCESS_URL"
 instruction ""
 
 instruction "METHOD 3: PowerShell (with OpenSSH):"
 instruction "1. Open PowerShell (run as administrator)"
-instruction "2. Generate keys: ssh-keygen -t rsa -b 4096 -C \"your-email@example.com\""
-instruction "3. Copy keys: scp -P $SSH_PORT ~/.ssh/id_rsa.pub $NEW_USER@$SERVER_ACCESS_URL:~/.ssh/authorized_keys"
+instruction "2. Generate keys: ssh-keygen -t ed25519 -C \"your-email@example.com\""
+instruction "3. Copy keys: scp -P $SSH_PORT ~/.ssh/id_ed25519.pub $NEW_USER@$SERVER_ACCESS_URL:~/.ssh/authorized_keys"
 instruction "4. Set permissions: ssh -p $SSH_PORT $NEW_USER@$SERVER_ACCESS_URL \"chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh\""
-instruction "5. Test: ssh -p $SSH_PORT $NEW_USER@$SERVER_ACCESS_URL"
+instruction "5. Test: ssh -p $SSH_PORT -i ~/.ssh/id_ed25519 $NEW_USER@$SERVER_ACCESS_URL"
 instruction ""
 
 instruction "METHOD 4: PuTTY (Windows - Legacy):"
@@ -766,41 +724,68 @@ success "SSH directory created for '$NEW_USER'. Windows-compatible key setup met
 # Backup original SSH config
 cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
 
-# Configure SSH
-info "Configuring SSH (with optional key-based authentication)..."
+# Configure SSH with enhanced security
+info "Configuring SSH with enhanced security settings..."
+
+# Backup SSH host keys
+info "Backing up existing SSH host keys..."
+mkdir -p /etc/ssh/backup
+cp /etc/ssh/ssh_host_* /etc/ssh/backup/
+
+# Generate new ED25519 host key
+info "Generating new ED25519 host key..."
+rm -f /etc/ssh/ssh_host_ed25519_key*
+ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -N "" < /dev/null
+
+# Configure SSH with modern security settings
 cat > /etc/ssh/sshd_config << EOF
 # SSH Server Configuration
 Port $SSH_PORT
 Protocol 2
 
-# Authentication (Modified for flexibility)
+# Authentication
 PermitRootLogin no
 PasswordAuthentication yes
 PubkeyAuthentication yes
 PermitEmptyPasswords no
 ChallengeResponseAuthentication no
 UsePAM yes
+AuthenticationMethods publickey,password
 
-# Restrict users
+# Key Exchange and Ciphers
+KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
+
+# Restrict users and access
 AllowUsers $NEW_USER
+MaxStartups 10:30:60
+MaxAuthTries 3
+LoginGraceTime 30
+MaxSessions 2
 
-# Hardening
+# Security Hardening
 HostbasedAuthentication no
 IgnoreRhosts yes
 X11Forwarding no
-MaxAuthTries 5
-LoginGraceTime 60
-MaxSessions 3
+AllowAgentForwarding no
+AllowTcpForwarding no
+PermitTunnel no
+PermitUserEnvironment no
 ClientAliveInterval 300
 ClientAliveCountMax 2
 
-# Logging
+# Logging and Auditing
 SyslogFacility AUTH
 LogLevel VERBOSE
+PrintMotd no
+PrintLastLog yes
 
-# Other
+# Other Security Settings
 TCPKeepAlive yes
 Compression delayed
+StrictModes yes
+UsePrivilegeSeparation sandbox
 EOF
 
 info "Configuring SSH client to use the new port..."
@@ -975,25 +960,24 @@ success "Log rotation configured."
 
 # Configure Logwatch if requested
 if [[ "$SETUP_LOGWATCH" == "y" ]]; then
-    info "Installing and configuring Logwatch..."
-    apt-get install -y -qq logwatch
-
-    # Configure Logwatch for daily reports
-    mkdir -p /etc/logwatch/conf
-    cat > /etc/logwatch/conf/logwatch.conf << EOF
-LogDir = /var/log
-TmpDir = /var/cache/logwatch
-Output = mail
-Format = html
-Encode = none
-MailTo = root
-Range = yesterday
-Detail = Medium
-Service = All
-EOF
-
-    success "Logwatch installed and configured for daily reports."
+    configure_logwatch
+    
+    if [[ -n "$NOTIFICATION_EMAIL" ]]; then
+        # Update Logwatch mail recipient
+        sed -i "s/MailTo = root/MailTo = $NOTIFICATION_EMAIL/" /etc/logwatch/conf/logwatch.conf
+    fi
+    
+    success "Logwatch configured for daily reports"
 fi
+
+# Generate initial health report
+generate_health_report
+
+# Monitor critical services
+info "Checking critical services status..."
+monitor_service docker
+monitor_service fail2ban
+monitor_service nginx-proxy-manager
 
 #############################################################
 # Final Steps and Summary

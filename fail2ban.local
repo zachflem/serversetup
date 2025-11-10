@@ -1,0 +1,97 @@
+[DEFAULT]
+# Global settings
+bantime  = 86400    # Ban for 24 hours
+findtime = 600      # Look for patterns within 10 minutes
+maxretry = 3        # Allow 3 retries before banning
+banaction = ufw     # Use UFW for banning
+destemail = root    # Send notifications to root
+sender = root@localhost
+mta = sendmail
+action = %(action_mwl)s  # ban & send an email with whois report and log lines
+
+# Ignore our own IP to prevent self-banning
+ignoreip = 127.0.0.1/8 ::1
+
+# Use aggressive mode for repeat offenders
+aggressive = true
+aggressive_factor = 4   # Multiply bantime by 4 for repeat offenders
+
+# Logging settings
+loglevel = INFO
+logtarget = /var/log/fail2ban.log
+
+[sshd]
+enabled = true
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 3
+bantime = 86400
+findtime = 600
+
+[sshd-aggressive]
+enabled = true
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 2
+bantime = 604800     # 1 week ban for aggressive attempts
+findtime = 300       # Look at last 5 minutes
+aggressive = true
+
+[nginx-http-auth]
+enabled = true
+filter = nginx-http-auth
+port = http,https
+logpath = /var/log/nginx/error.log
+maxretry = 3
+
+[nginx-botsearch]
+enabled = true
+filter = nginx-botsearch
+port = http,https
+logpath = /var/log/nginx/access.log
+maxretry = 2
+findtime = 300
+bantime = 86400
+
+[nginx-badbots]
+enabled = true
+filter = nginx-badbots
+port = http,https
+logpath = /var/log/nginx/access.log
+maxretry = 2
+
+[nginx-noscript]
+enabled = true
+port = http,https
+filter = nginx-noscript
+logpath = /var/log/nginx/access.log
+maxretry = 3
+findtime = 600
+bantime = 86400
+
+[nginx-deny]
+enabled = true
+port = http,https
+filter = nginx-deny
+logpath = /var/log/nginx/error.log
+maxretry = 3
+findtime = 600
+bantime = 86400
+
+[docker-action]
+enabled = true
+logpath = /var/log/docker.log
+maxretry = 5
+findtime = 300
+bantime = 3600
+
+[recidive]
+enabled = true
+filter = recidive
+logpath = /var/log/fail2ban.log
+action = %(banaction)s[name=%(__name__)s-tcp, port="all", protocol=tcp]
+         %(banaction)s[name=%(__name__)s-udp, port="all", protocol=udp]
+bantime = 604800    # 1 week
+findtime = 86400    # 1 day
+maxretry = 3
