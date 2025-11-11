@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Source required files
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-source "$SCRIPT_DIR/config.sh"
-source "$SCRIPT_DIR/functions.sh"
-source "$SCRIPT_DIR/system_ops.sh"
+MONITORING_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$MONITORING_DIR/config.sh"
+source "$MONITORING_DIR/functions.sh"
+source "$MONITORING_DIR/system_ops.sh"
 
 #############################################################
 # System Monitoring Functions

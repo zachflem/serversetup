@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Source required files
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-source "$SCRIPT_DIR/config.sh"
-source "$SCRIPT_DIR/functions.sh"
+SYSTEM_OPS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SYSTEM_OPS_DIR/config.sh"
+source "$SYSTEM_OPS_DIR/functions.sh"
 
 #############################################################
 # System Detection Functions

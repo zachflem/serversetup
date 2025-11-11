@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # Source configuration
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-source "$SCRIPT_DIR/config.sh"
+# Get the directory where this functions.sh file is located
+FUNCTIONS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$FUNCTIONS_DIR/config.sh"
 
 #############################################################
 # Logging Functions

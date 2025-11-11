@@ -8,7 +8,9 @@ DEFAULT_LOG_DIR="/var/log/server_setup"
 DEFAULT_BACKUP_DIR="/var/backups/server_setup"
 
 # Script version
-readonly SCRIPT_VERSION="1.0.0"
+if [[ -z "${SCRIPT_VERSION:-}" ]]; then
+    readonly SCRIPT_VERSION="1.0.0"
+fi
 
 # Security settings
 SSH_KEY_TYPE="ed25519"  # More secure than RSA

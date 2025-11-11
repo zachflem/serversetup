@@ -14,10 +14,14 @@
 #############################################################
 
 # Source required files
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/modules/config.sh"
 source "$SCRIPT_DIR/modules/functions.sh"
 source "$SCRIPT_DIR/modules/validation.sh"
+
+# Initialize variables
+CONFIG_FILE=""
+NON_INTERACTIVE=false
 
 # Initialize script
 init_script
@@ -49,7 +53,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Load custom configuration if provided
-if [[ -n "$CONFIG_FILE" ]]; then
+if [[ -n "${CONFIG_FILE:-}" ]]; then
     info "Loading configuration from $CONFIG_FILE"
     load_config "$CONFIG_FILE"
 fi

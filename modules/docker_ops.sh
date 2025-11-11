@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Source required files
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-source "$SCRIPT_DIR/config.sh"
-source "$SCRIPT_DIR/functions.sh"
-source "$SCRIPT_DIR/system_ops.sh"
+DOCKER_OPS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$DOCKER_OPS_DIR/config.sh"
+source "$DOCKER_OPS_DIR/functions.sh"
+source "$DOCKER_OPS_DIR/system_ops.sh"
 
 #############################################################
 # Docker Installation and Management
