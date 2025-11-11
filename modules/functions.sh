@@ -75,6 +75,68 @@ info() { log "INFO" "$1"; }
 warn() { log "WARN" "$1"; }
 error() { log "ERROR" "$1"; }
 
+# Additional output functions
+success() {
+    local message="$1"
+    echo -e "\e[32m[✓]\e[0m $message"
+    log "INFO" "$message"
+}
+
+instruction() {
+    local message="$1"
+    echo -e "\e[36m[→]\e[0m $message"
+}
+
+log_section() {
+    local title="$1"
+    echo
+    echo -e "\e[1m\e[34m========================================\e[0m"
+    echo -e "\e[1m\e[34m $title\e[0m"
+    echo -e "\e[1m\e[34m========================================\e[0m"
+    echo
+}
+
+# Prompt user with options
+prompt_options() {
+    local title="$1"
+    local prompt="$2"
+    local var_name="$3"
+    shift 3
+    local options=("$@")
+    
+    echo
+    echo -e "\e[1m\e[33m$title\e[0m"
+    echo
+    
+    local i=1
+    for option in "${options[@]}"; do
+        echo "  $i) $option"
+        ((i++))
+    done
+    echo
+    
+    while true; do
+        read -p "$prompt " choice
+        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#options[@]}" ]; then
+            eval "$var_name=$choice"
+            break
+        else
+            echo -e "\e[31mInvalid choice. Please select a number between 1 and ${#options[@]}.\e[0m"
+        fi
+    done
+}
+
+# Generate random password
+generate_password() {
+    local length="${1:-16}"
+    tr -dc 'A-Za-z0-9!@#$%^&*()_+=' < /dev/urandom | head -c "$length"
+}
+
+# Generate random port
+random_port() {
+    shuf -i 10000-65000 -n 1
+}
+
 #############################################################
 # Error Handling Functions
 #############################################################
